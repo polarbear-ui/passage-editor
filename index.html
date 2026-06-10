@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지문 발췌 에디터</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+    <style>
+        :root {
+            --bg-app: #f0f2f5;
+            --bg-sidebar: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #334155;
+            --accent: #3b82f6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .app-container { display: flex; flex: 1; flex-direction: column; }
+
+        .toolbar {
+            background-color: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 100;
+        }
+
+        .tool-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed #cbd5e1;
+        }
+        .tool-section:last-child { border-bottom: none; }
+        .tool-section label { font-size: 13px; font-weight: 600; color: #64748b; }
+        .tool-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+        select, input[type="color"], button {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #fff;
+            font-family: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        select:focus, button:focus { outline: none; border-color: var(--accent); }
+        button:hover { background-color: #f8fafc; border-color: #cbd5e1; }
+
+        .btn-capture {
+            background-color: var(--accent);
+            color: white;
+            font-weight: bold;
+            border: none;
+            padding: 12px;
+            width: 100%;
+        }
+        .btn-capture:hover { background-color: #2563eb; }
+
+        .btn-danger { color: #ef4444; border-color: #fca5a5; }
+        .btn-danger:hover { background-color: #fef2f2; }
+        .btn-apply { background-color: #f1f5f9; padding: 6px 10px; font-size: 12px; }
+        input[type="color"] { padding: 0; width: 28px; height: 28px; border-radius: 4px; }
+
+        .viewer-area {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px 20px;
+            overflow: auto; /* 화면이 작아져도 스크롤이 생기도록 설정 */
+        }
+
+        /* 캔버스 가로 크기 고정: 창 크기를 줄여도 레이아웃(비율/줄바꿈)이 완벽 유지됨 */
+        .capture-canvas {
+            width: 600px;
+            min-width: 600px;
+            min-height: 400px;
+            position: relative;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            background-color: #ffffff; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        #bgLayer, #overlayLayer {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+        }
+
+        #bgLayer { z-index: 1; background-color: transparent; background-size: cover; background-position: center; transition: background 0.3s; }
+        #overlayLayer { z-index: 2; background-color: rgba(0,0,0,0); pointer-events: none; }
+
+        .editable-content {
+            position: relative;
+            z-index: 3;
+            flex: 1;
+            outline: none;
+            word-break: break-all;
+            white-space: pre-wrap;
+            padding: 50px 40px 20px 40px; /* 하단 여백 약간 조정 */
+            font-family: 'Pretendard', sans-serif;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #1e293b;
+        }
+        
+        .editable-content * { 
+            font-family: inherit !important; 
+            font-size: inherit !important; 
+        }
+        
+        .editable-content span { padding: 2px 0; }
+        .editable-content:empty:before { content: "여기에 지문을 붙여넣거나 입력하세요"; color: #94a3b8; font-style: italic; }
+
+        /* 속마음 알림창 컨테이너 */
+        #notifContainer {
+            display: none;
+            position: relative;
+            z-index: 20;
+            padding: 10px 40px 40px 40px; /* 본문 아래에 위치하며, 하단 40px 여백 유지 */
+        }
+
+        /* 스티커 컴포넌트 */
+        .sticker {
+            position: absolute;
+            z-index: 10;
+            background: transparent;
+            min-width: 50px;
+            border: 1px dashed transparent;
+            transform-origin: center center;
+            padding: 10px;
+        }
+        .sticker:hover, .sticker:focus-within { border-color: #3b82f6; background-color: rgba(241, 245, 249, 0.3); }
+        .sticker-style-btn {
+            position: absolute; top: -10px; left: -10px;
+            background: #3b82f6; color: white; border-radius: 50%;
+            width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; font-weight: bold; font-family: serif; cursor: pointer; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .sticker:hover .sticker-style-btn, .sticker:focus-within .sticker-style-btn { display: block; }
+        .sticker-close {
+            position: absolute; top: -10px; right: -10px;
+            background: #ef4444; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; font-weight: bold; cursor: pointer; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .sticker:hover .sticker-close, .sticker:focus-within .sticker-close { display: block; }
+        .sticker-resize-handle {
+            position: absolute; width: 14px; height: 14px; background-color: #3b82f6; border: 2px solid white; border-radius: 50%; bottom: -7px; right: -7px; cursor: se-resize; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .sticker:hover .sticker-resize-handle, .sticker:focus-within .sticker-resize-handle { display: block; }
+        .sticker-width-handle {
+            position: absolute; width: 8px; height: 18px; background-color: #f59e0b; border: 2px solid white; border-radius: 4px; top: calc(50% - 9px); right: -6px; cursor: ew-resize; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .sticker:hover .sticker-width-handle, .sticker:focus-within .sticker-width-handle { display: block; }
+        .sticker-rotate-handle {
+            position: absolute; width: 12px; height: 12px; background-color: #10b981; border: 2px solid white; border-radius: 50%; top: -25px; left: calc(50% - 6px); cursor: grab; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .sticker-rotate-line {
+            position: absolute; width: 1px; height: 15px; background-color: #10b981; top: -15px; left: 50%; display: none; z-index: 14;
+        }
+        .sticker:hover .sticker-rotate-handle, .sticker:focus-within .sticker-rotate-handle { display: block; }
+        .sticker:hover .sticker-rotate-line, .sticker:focus-within .sticker-rotate-line { display: block; }
+        .sticker-move-overlay {
+            position: absolute; top: 0; left: 0; right: 0; height: 15px; background-color: transparent; cursor: move;
+        }
+        .sticker-text {
+            width: 100%; height: auto; outline: none; font-family: inherit; white-space: pre-wrap; word-break: break-word; padding: 4px 6px; line-height: 1.4; border-radius: 6px; transition: background 0.2s, color 0.2s; 
+        }
+
+        .is-capturing .sticker { border-color: transparent !important; background-color: transparent !important; }
+        .is-capturing .sticker-close,
+        .is-capturing .sticker-style-btn,
+        .is-capturing .sticker-resize-handle,
+        .is-capturing .sticker-width-handle,
+        .is-capturing .sticker-rotate-handle,
+        .is-capturing .sticker-rotate-line,
+        .is-capturing .sticker-move-overlay { display: none !important; }
+
+        @media (min-width: 768px) {
+            .app-container { flex-direction: row; }
+            .toolbar { width: 340px; border-bottom: none; border-right: 1px solid var(--border-color); height: 100vh; position: fixed; left: 0; top: 0; overflow-y: auto; }
+            .viewer-area { margin-left: 340px; padding: 60px 40px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="toolbar">
+        <div class="tool-section">
+            <label>기본 서체 및 크기</label>
+            <select onchange="updateCanvasFontFamily(this.value)" style="width: 100%; margin-bottom: 8px;">
+                <option value="'Pretendard', sans-serif">프리텐다드</option>
+                <option value="'Nanum Myeongjo', serif">나눔명조</option>
+            </select>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:12px; white-space:nowrap;">크기 <span id="fontSizeVal">16</span>px</span>
+                <input type="range" min="12" max="32" value="16" step="1" style="width: 100%;" oninput="updateCanvasFontSize(this.value)">
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <label>선택 영역 서식</label>
+            <div class="tool-row">
+                <button onclick="formatText('bold')" title="굵게"><b>B</b></button>
+                <button onclick="formatText('italic')" title="기울임"><i>I</i></button>
+                <button onclick="formatText('strikeThrough')" title="취소선"><strike>S</strike></button>
+                <button class="btn-danger" onclick="removeHighlight()">형광펜 지우기</button>
+            </div>
+            <div class="tool-row" style="margin-top: 8px;">
+                <input type="color" id="textColorPicker" value="#1e293b" title="글자색">
+                <button class="btn-apply" onclick="applyCurrentTextColor()">글자색 적용</button>
+                
+                <input type="color" id="highlightColorPicker" value="#cce5ff" title="형광펜" style="margin-left: 8px;">
+                <button class="btn-apply" onclick="applyCurrentHighlightColor()">형광펜 적용</button>
+            </div>
+        </div>
+
+        <div class="tool-section" style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <label>텍스트 삽입</label>
+            <p style="font-size: 11px; color: #64748b; margin-bottom: 8px; line-height: 1.5;">
+                <strong style="color:#3b82f6">파란 점:</strong> 글자/박스 비례 확대<br>
+                <strong style="color:#f59e0b">주황 점:</strong> 가로 폭 조절 (자동 줄바꿈)<br>
+                <strong style="color:#1e293b">A 버튼:</strong> 배경 스타일 변경
+            </p>
+            <button onclick="addAdvancedSticker()" style="width: 100%; background-color: #fff; font-weight: bold; border-color: #cbd5e1;">+ 텍스트 추가</button>
+        </div>
+
+        <!-- NEW: 캐릭터 속마음 알림창 설정 -->
+        <div class="tool-section" style="background-color: #fdf4ff; padding: 15px; border-radius: 8px; border: 1px solid #fbcfe8;">
+            <label style="color: #a21caf;">캐릭터 속마음 알림창</label>
+            <div class="tool-row" style="margin-bottom: 8px; margin-top: 4px;">
+                <label style="font-weight:normal; font-size:13px; color: #701a75; cursor:pointer;">
+                    <input type="checkbox" id="notifToggle" onchange="toggleNotif(this.checked)"> 알림창 표시하기
+                </label>
+            </div>
+            
+            <div id="notifControls" style="display:none; flex-direction: column; gap: 12px; margin-top: 8px;">
+                <div>
+                    <label style="font-size: 11px; color:#86198f;">알림창 스타일</label>
+                    <select id="notifStyleSelect" onchange="changeNotifStyle(this.value)" style="width:100%; margin-top:2px;">
+                        <option value="popup">팝업 형태 (중앙 정렬)</option>
+                        <option value="bubble">말풍선 형태 (좌측 정렬)</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label style="font-size: 11px; color:#86198f;">프로필 사진 (선택)</label>
+                    <input type="file" accept="image/*" onchange="setNotifProfile(event)" style="width:100%; font-size:11px; margin-top:2px;">
+                </div>
+
+                <div>
+                    <label style="font-size: 11px; color:#86198f;">입력창 배경 & 투명도</label>
+                    <div style="display:flex; gap: 6px; align-items:center; margin-top:2px;">
+                        <input type="color" id="notifBgColor" value="#000000" oninput="updateNotifStyle()">
+                        <input type="range" id="notifOpacity" min="0" max="100" value="70" style="flex:1;" oninput="updateNotifStyle()">
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-size: 11px; color:#86198f;">텍스트 색상</label>
+                    <input type="color" id="notifTextColor" value="#ffffff" oninput="updateNotifStyle()" style="display:block; margin-top:2px;">
+                </div>
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <label>배경 편집</label>
+            <div class="tool-row">
+                <button onclick="setBgStyle('#ffffff')">흰색</button>
+                <button onclick="setBgStyle('#1e293b')">다크</button>
+            </div>
+            <div style="margin-top: 12px;">
+                <label style="font-size: 12px; font-weight: normal;">그라데이션 (시작 ~ 끝 색상)</label>
+                <div style="display:flex; align-items:center; gap: 10px; margin-top: 4px;">
+                    <input type="color" id="gradStart" value="#f6d365" oninput="updateCustomGradient()">
+                    <span>~</span>
+                    <input type="color" id="gradEnd" value="#fda085" oninput="updateCustomGradient()">
+                </div>
+            </div>
+            <div style="margin-top: 12px;">
+                <label style="font-size: 12px; font-weight: normal;">자유 배경색 선택</label>
+                <input type="color" onchange="setBgStyle(this.value)" style="width:100%; margin-top:4px;">
+            </div>
+            <div style="margin-top: 12px;">
+                <label style="font-size: 12px; font-weight: normal;">이미지 삽입</label>
+                <input type="file" id="bgImageInput" accept="image/*" onchange="setBgImage(event)" style="width:100%; font-size:12px; margin-top:4px;">
+            </div>
+            <div style="margin-top: 12px;">
+                <label style="font-size: 12px; font-weight: normal;">명도 조절 (어둡게 ← 원본 → 밝게)</label>
+                <input type="range" min="-100" max="100" value="0" step="1" style="width: 100%; margin-top:4px;" oninput="updateBgBrightness(this.value)">
+            </div>
+        </div>
+
+        <div class="tool-section" style="border:none; margin-top:auto;">
+            <button class="btn-capture" onclick="captureCanvas()">이미지로 저장하기</button>
+        </div>
+    </div>
+
+    <div class="viewer-area">
+        <!-- 캔버스 컨테이너 -->
+        <div class="capture-canvas" id="captureCanvas">
+            <div id="bgLayer"></div>
+            <div id="overlayLayer"></div>
+            <div class="editable-content" id="editableContent" contenteditable="true"></div>
+            
+            <!-- 속마음 알림창이 출력되는 영역 (텍스트 내용 아래 고정) -->
+            <div id="notifContainer">
+                <!-- 1. 팝업 형태 -->
+                <div id="notifPopup" style="display:flex; align-items:center; width:100%; max-width: 450px; margin: 0 auto; background-color: rgba(0,0,0,0.7); border-radius: 50px; padding: 10px 18px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <div class="notif-profile-img" style="width: 36px; height: 36px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
+                    <div class="notif-text" contenteditable="true" style="flex:1; text-align:center; color: white; outline:none; padding: 0 10px; font-size:15px; word-break: break-all;">속마음을 입력하세요...</div>
+                </div>
+
+                <!-- 2. 말풍선 형태 -->
+                <div id="notifBubble" style="display:none; align-items:flex-end; width:100%;">
+                    <div class="notif-profile-img" style="width: 46px; height: 46px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; margin-right: 12px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
+                    <div class="notif-text" contenteditable="true" style="background-color: rgba(0,0,0,0.7); color: white; border-radius: 20px; border-bottom-left-radius: 4px; padding: 12px 18px; max-width: 80%; outline:none; font-size:15px; line-height:1.4; word-break: break-all; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">속마음을 입력하세요...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- [1] 기본 텍스트 포맷팅 ---
+    function updateCanvasFontFamily(fontFamily) { document.getElementById('editableContent').style.fontFamily = fontFamily; }
+    function updateCanvasFontSize(size) {
+        document.getElementById('fontSizeVal').innerText = size;
+        document.getElementById('editableContent').style.fontSize = size + 'px';
+    }
+    function formatText(command) {
+        document.execCommand(command, false, null);
+        document.getElementById('editableContent').focus();
+    }
+    function applyCurrentTextColor() {
+        const color = document.getElementById('textColorPicker').value;
+        document.execCommand('foreColor', false, color);
+        document.getElementById('editableContent').focus();
+    }
+    function applyCurrentHighlightColor() {
+        const color = document.getElementById('highlightColorPicker').value;
+        document.execCommand('hiliteColor', false, color);
+        document.execCommand('backColor', false, color);
+        document.getElementById('editableContent').focus();
+    }
+    function removeHighlight() {
+        document.execCommand('hiliteColor', false, 'transparent');
+        document.execCommand('backColor', false, 'transparent');
+        document.getElementById('editableContent').focus();
+    }
+
+    // --- [2] 배경 및 명도 조절 ---
+    function setBgStyle(styleValue) {
+        document.getElementById('bgLayer').style.background = styleValue;
+        document.getElementById('bgImageInput').value = '';
+    }
+    function updateCustomGradient() {
+        const start = document.getElementById('gradStart').value;
+        const end = document.getElementById('gradEnd').value;
+        setBgStyle(`linear-gradient(135deg, ${start} 0%, ${end} 100%)`);
+    }
+    function setBgImage(event) {
+        const file = event.target.files[0];
+        if(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const bgLayer = document.getElementById('bgLayer');
+                bgLayer.style.background = `url('${e.target.result}')`;
+                bgLayer.style.backgroundSize = 'cover';
+                bgLayer.style.backgroundPosition = 'center';
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+    function updateBgBrightness(val) {
+        const overlay = document.getElementById('overlayLayer');
+        const value = parseInt(val);
+        if (value < 0) overlay.style.backgroundColor = `rgba(0, 0, 0, ${Math.abs(value) / 100})`;
+        else if (value > 0) overlay.style.backgroundColor = `rgba(255, 255, 255, ${value / 100})`;
+        else overlay.style.backgroundColor = `rgba(0, 0, 0, 0)`;
+    }
+
+    // --- [3] 텍스트 추가 (고급 스티커) ---
+    function addAdvancedSticker() {
+        const canvas = document.getElementById('captureCanvas');
+        const sticker = document.createElement('div');
+        sticker.className = 'sticker';
+        sticker.style.left = '100px';
+        sticker.style.top = '100px';
+        sticker.style.width = '200px';
+        sticker.style.height = 'auto';
+        
+        const state = { transform: { x: 0, y: 0, rotation: 0 }, width: 200 };
+
+        const styleBtn = document.createElement('div');
+        styleBtn.className = 'sticker-style-btn';
+        styleBtn.innerText = 'A';
+        let bgStyleMode = 0; 
+
+        const closeBtn = document.createElement('div');
+        closeBtn.className = 'sticker-close';
+        closeBtn.innerText = '✕';
+        closeBtn.onclick = () => sticker.remove();
+
+        const moveOverlay = document.createElement('div');
+        moveOverlay.className = 'sticker-move-overlay';
+
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'sticker-resize-handle';
+        resizeHandle.title = "글자 비례 조절";
+
+        const widthHandle = document.createElement('div');
+        widthHandle.className = 'sticker-width-handle';
+        widthHandle.title = "가로 폭 조절 (줄바꿈)";
+
+        const rotateLine = document.createElement('div');
+        rotateLine.className = 'sticker-rotate-line';
+        const rotateHandle = document.createElement('div');
+        rotateHandle.className = 'sticker-rotate-handle';
+
+        const text = document.createElement('div');
+        text.className = 'sticker-text';
+        text.contentEditable = true;
+        text.innerText = '여기에 내용을 입력하세요';
+        text.style.color = document.getElementById('textColorPicker').value;
+        text.style.fontSize = document.getElementById('fontSizeVal').innerText + 'px';
+
+        styleBtn.onclick = () => {
+            bgStyleMode = (bgStyleMode + 1) % 3;
+            if (bgStyleMode === 0) {
+                text.style.backgroundColor = 'transparent';
+                text.style.color = document.getElementById('textColorPicker').value;
+            } else if (bgStyleMode === 1) {
+                text.style.backgroundColor = 'rgba(255, 255, 255, 0.85)';
+                text.style.color = '#1e293b';
+            } else if (bgStyleMode === 2) {
+                text.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
+                text.style.color = '#ffffff';
+            }
+        };
+
+        sticker.appendChild(styleBtn);
+        sticker.appendChild(closeBtn);
+        sticker.appendChild(moveOverlay);
+        sticker.appendChild(resizeHandle);
+        sticker.appendChild(widthHandle);
+        sticker.appendChild(rotateLine);
+        sticker.appendChild(rotateHandle);
+        sticker.appendChild(text);
+        canvas.appendChild(sticker);
+
+        function applyTransform() {
+            sticker.style.transform = `translate(${state.transform.x}px, ${state.transform.y}px) rotate(${state.transform.rotation}deg)`;
+        }
+
+        let isMoving = false, moveStartX, moveStartY;
+        moveOverlay.addEventListener('mousedown', (e) => {
+            isMoving = true;
+            moveStartX = e.clientX - state.transform.x;
+            moveStartY = e.clientY - state.transform.y;
+            e.preventDefault();
+        });
+
+        let isResizing = false, resizeStartX, startWidth, startFontSize;
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            resizeStartX = e.clientX;
+            startWidth = state.width;
+            startFontSize = parseFloat(window.getComputedStyle(text).fontSize);
+            e.preventDefault(); e.stopPropagation();
+        });
+
+        let isWidthResizing = false, widthResizeStartX, startWidthOnly;
+        widthHandle.addEventListener('mousedown', (e) => {
+            isWidthResizing = true;
+            widthResizeStartX = e.clientX;
+            startWidthOnly = state.width;
+            e.preventDefault(); e.stopPropagation();
+        });
+
+        let isRotating = false;
+        rotateHandle.addEventListener('mousedown', (e) => {
+            isRotating = true;
+            e.preventDefault(); e.stopPropagation();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isMoving) {
+                state.transform.x = e.clientX - moveStartX;
+                state.transform.y = e.clientY - moveStartY;
+                applyTransform();
+            }
+            if (isResizing) {
+                const dx = e.clientX - resizeStartX;
+                const ratio = Math.max(0.3, (startWidth + dx) / startWidth);
+                state.width = startWidth * ratio;
+                sticker.style.width = state.width + 'px';
+                text.style.fontSize = (startFontSize * ratio) + 'px';
+            }
+            if (isWidthResizing) {
+                const dx = e.clientX - widthResizeStartX;
+                state.width = Math.max(80, startWidthOnly + dx);
+                sticker.style.width = state.width + 'px';
+            }
+            if (isRotating) {
+                const rect = sticker.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+                state.transform.rotation = angle * (180 / Math.PI) - 90;
+                applyTransform();
+            }
+        });
+
+        document.addEventListener('mouseup', () => { 
+            isMoving = false; isResizing = false; isWidthResizing = false; isRotating = false; 
+        });
+    }
+
+    // --- [4] NEW: 캐릭터 속마음 알림창 로직 ---
+    function toggleNotif(show) {
+        document.getElementById('notifControls').style.display = show ? 'flex' : 'none';
+        document.getElementById('notifContainer').style.display = show ? 'block' : 'none';
+        if (show) updateNotifStyle();
+    }
+
+    function changeNotifStyle(style) {
+        document.getElementById('notifPopup').style.display = style === 'popup' ? 'flex' : 'none';
+        document.getElementById('notifBubble').style.display = style === 'bubble' ? 'flex' : 'none';
+    }
+
+    // HEX 색상 코드와 0~100 투명도를 RGBA 문법으로 변환
+    function hexToRgba(hex, opacity) {
+        let r = parseInt(hex.slice(1, 3), 16);
+        let g = parseInt(hex.slice(3, 5), 16);
+        let b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity / 100})`;
+    }
+
+    function updateNotifStyle() {
+        const bgColorHex = document.getElementById('notifBgColor').value;
+        const opacity = document.getElementById('notifOpacity').value;
+        const textColor = document.getElementById('notifTextColor').value;
+        const rgba = hexToRgba(bgColorHex, opacity);
+        
+        // 팝업형 업데이트
+        const popup = document.getElementById('notifPopup');
+        popup.style.backgroundColor = rgba;
+        popup.querySelector('.notif-text').style.color = textColor;
+        
+        // 말풍선형 업데이트
+        const bubbleText = document.getElementById('notifBubble').querySelector('.notif-text');
+        bubbleText.style.backgroundColor = rgba;
+        bubbleText.style.color = textColor;
+    }
+
+    function setNotifProfile(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const url = `url('${e.target.result}')`;
+                // 팝업형, 말풍선형 양쪽 프로필 이미지를 모두 교체
+                document.querySelectorAll('.notif-profile-img').forEach(el => {
+                    el.style.backgroundImage = url;
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    // --- [5] 캡처 기능 ---
+    function captureCanvas() {
+        if (document.activeElement) document.activeElement.blur();
+        const canvasContainer = document.getElementById('captureCanvas');
+        canvasContainer.classList.add('is-capturing');
+        
+        setTimeout(() => {
+            htmlToImage.toPng(canvasContainer, { pixelRatio: 2 })
+                .then(function (dataUrl) {
+                    const link = document.createElement('a');
+                    link.download = 'dialogue_' + new Date().getTime() + '.png';
+                    link.href = dataUrl;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    canvasContainer.classList.remove('is-capturing');
+                })
+                .catch(function (error) {
+                    alert("이미지 저장 실패: " + error);
+                    canvasContainer.classList.remove('is-capturing');
+                });
+        }, 150);
+    }
+</script>
+
+</body>
+</html>
