@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>지문 발췌 에디터</title>
+    <title>지문 발췌 에디터 - v12</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
@@ -76,6 +76,11 @@
 
         .btn-danger { color: #ef4444; border-color: #fca5a5; }
         .btn-danger:hover { background-color: #fef2f2; }
+        
+        /* 새로운 리셋 버튼 스타일 */
+        .btn-reset { background-color: #fef2f2; color: #ef4444; border: 1px solid #fca5a5; font-weight: bold; padding: 12px; width: 100%; margin-bottom: 8px; }
+        .btn-reset:hover { background-color: #fee2e2; }
+
         .btn-apply { background-color: #f1f5f9; padding: 6px 10px; font-size: 12px; }
         input[type="color"] { padding: 0; width: 28px; height: 28px; border-radius: 4px; }
 
@@ -123,7 +128,8 @@
             z-index: 3;
             flex: 1;
             outline: none;
-            word-break: break-all;
+            word-break: keep-all;
+            overflow-wrap: break-word;
             white-space: pre-wrap;
             padding: 50px 40px 20px 40px; 
             font-family: 'Pretendard', sans-serif;
@@ -132,16 +138,15 @@
             color: #1e293b;
         }
         
-        .editable-content * { 
-            font-family: inherit !important; 
-            font-size: inherit !important; 
-        }
-        
+        .editable-content * { font-family: inherit !important; font-size: inherit !important; }
         .editable-content span { padding: 2px 0; }
         .editable-content:empty:before { content: "여기에 지문을 붙여넣거나 입력하세요"; color: #94a3b8; font-style: italic; }
 
+        /* 알림창 컨테이너 */
         #notifContainer {
-            display: none;
+            display: none; /* 플렉스로 관리됨 */
+            flex-direction: column;
+            gap: 12px;
             position: relative;
             z-index: 20;
             padding: 10px 40px 40px 40px; 
@@ -150,32 +155,20 @@
         /* === 스티커 컴포넌트 === */
         .sticker { position: absolute; z-index: 10; background: transparent; min-width: 50px; border: 1px dashed transparent; transform-origin: center center; padding: 10px; }
         .sticker:hover, .sticker:focus-within { border-color: #3b82f6; background-color: rgba(241, 245, 249, 0.3); }
-        
-        /* 버튼 공통 스타일 추가: 모바일 터치 대응을 위해 touch-action 설정 */
-        .sticker-style-btn, .sticker-close, .sticker-resize-handle, .sticker-width-handle, .sticker-rotate-handle, .sticker-move-overlay {
-            touch-action: none; /* 모바일에서 드래그 시 화면 스크롤 방지 */
-        }
-
+        .sticker-style-btn, .sticker-close, .sticker-resize-handle, .sticker-width-handle, .sticker-rotate-handle, .sticker-move-overlay { touch-action: none; }
         .sticker-style-btn { position: absolute; top: -10px; left: -10px; background: #3b82f6; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; font-weight: bold; font-family: serif; cursor: pointer; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .sticker:hover .sticker-style-btn, .sticker:focus-within .sticker-style-btn { display: block; }
-        
         .sticker-close { position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; font-weight: bold; cursor: pointer; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .sticker:hover .sticker-close, .sticker:focus-within .sticker-close { display: block; }
-        
-        /* 모바일에서 잘 잡히도록 핸들 크기 약간 키움 */
         .sticker-resize-handle { position: absolute; width: 18px; height: 18px; background-color: #3b82f6; border: 2px solid white; border-radius: 50%; bottom: -9px; right: -9px; cursor: se-resize; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .sticker:hover .sticker-resize-handle, .sticker:focus-within .sticker-resize-handle { display: block; }
-        
         .sticker-width-handle { position: absolute; width: 12px; height: 22px; background-color: #f59e0b; border: 2px solid white; border-radius: 4px; top: calc(50% - 11px); right: -8px; cursor: ew-resize; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .sticker:hover .sticker-width-handle, .sticker:focus-within .sticker-width-handle { display: block; }
-        
         .sticker-rotate-handle { position: absolute; width: 16px; height: 16px; background-color: #10b981; border: 2px solid white; border-radius: 50%; top: -27px; left: calc(50% - 8px); cursor: grab; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .sticker-rotate-line { position: absolute; width: 1px; height: 15px; background-color: #10b981; top: -15px; left: 50%; display: none; z-index: 14; }
         .sticker:hover .sticker-rotate-handle, .sticker:focus-within .sticker-rotate-handle { display: block; }
         .sticker:hover .sticker-rotate-line, .sticker:focus-within .sticker-rotate-line { display: block; }
-        
         .sticker-move-overlay { position: absolute; top: 0; left: 0; right: 0; height: 15px; background-color: transparent; cursor: move; }
-        
         .sticker-text { width: 100%; height: auto; outline: none; font-family: inherit; white-space: pre-wrap; word-break: break-word; padding: 4px 6px; line-height: 1.4; border-radius: 6px; transition: background 0.2s, color 0.2s; }
 
         .is-capturing .sticker { border-color: transparent !important; background-color: transparent !important; }
@@ -205,7 +198,7 @@
                 <option value="'Nanum Myeongjo', serif">나눔명조</option>
             </select>
             <div style="display:flex; align-items:center; gap:10px;">
-                <span style="font-size:12px; white-space:nowrap;">크기<span id="fontSizeVal">16</span>px</span>
+                <span style="font-size:12px; white-space:nowrap;">크기 <span id="fontSizeVal">16</span>px</span>
                 <input type="range" min="12" max="32" value="16" step="1" style="width: 100%;" oninput="updateCanvasFontSize(this.value)">
             </div>
         </div>
@@ -237,39 +230,68 @@
             <button onclick="addAdvancedSticker()" style="width: 100%; background-color: #fff; font-weight: bold; border-color: #cbd5e1;">+ 텍스트 추가</button>
         </div>
 
+        <!-- 캐릭터 1 속마음 -->
         <div class="tool-section" style="background-color: #fdf4ff; padding: 15px; border-radius: 8px; border: 1px solid #fbcfe8;">
-            <label style="color: #a21caf;">캐릭터 속마음 알림창</label>
+            <label style="color: #a21caf;">캐릭터 1 속마음</label>
             <div class="tool-row" style="margin-bottom: 8px; margin-top: 4px;">
                 <label style="font-weight:normal; font-size:13px; color: #701a75; cursor:pointer;">
-                    <input type="checkbox" id="notifToggle" onchange="toggleNotif(this.checked)"> 알림창 표시하기
+                    <input type="checkbox" id="notifToggle1" onchange="toggleNotif(1, this.checked)"> 첫 번째 알림창 표시
                 </label>
             </div>
-            
-            <div id="notifControls" style="display:none; flex-direction: column; gap: 12px; margin-top: 8px;">
+            <div id="notifControls1" style="display:none; flex-direction: column; gap: 12px; margin-top: 8px;">
                 <div>
-                    <label style="font-size: 11px; color:#86198f;">알림창 스타일</label>
-                    <select id="notifStyleSelect" onchange="changeNotifStyle(this.value)" style="width:100%; margin-top:2px;">
+                    <select id="notifStyleSelect1" onchange="changeNotifStyle(1, this.value)" style="width:100%; margin-top:2px;">
                         <option value="popup">팝업 형태 (중앙 정렬)</option>
                         <option value="bubble">말풍선 형태 (좌측 정렬)</option>
                     </select>
                 </div>
-                
                 <div>
-                    <label style="font-size: 11px; color:#86198f;">프로필 사진 (선택)</label>
-                    <input type="file" accept="image/*" onchange="setNotifProfile(event)" style="width:100%; font-size:11px; margin-top:2px;">
+                    <label style="font-size: 11px; color:#86198f;">프로필 사진</label>
+                    <input type="file" accept="image/*" onchange="setNotifProfile(1, event)" style="width:100%; font-size:11px; margin-top:2px;">
                 </div>
-
                 <div>
-                    <label style="font-size: 11px; color:#86198f;">입력창 배경 & 투명도</label>
+                    <label style="font-size: 11px; color:#86198f;">배경 & 투명도</label>
                     <div style="display:flex; gap: 6px; align-items:center; margin-top:2px;">
-                        <input type="color" id="notifBgColor" value="#000000" oninput="updateNotifStyle()">
-                        <input type="range" id="notifOpacity" min="0" max="100" value="70" style="flex:1;" oninput="updateNotifStyle()">
+                        <input type="color" id="notifBgColor1" value="#000000" oninput="updateNotifStyle(1)">
+                        <input type="range" id="notifOpacity1" min="0" max="100" value="70" style="flex:1;" oninput="updateNotifStyle(1)">
                     </div>
                 </div>
-
                 <div>
                     <label style="font-size: 11px; color:#86198f;">텍스트 색상</label>
-                    <input type="color" id="notifTextColor" value="#ffffff" oninput="updateNotifStyle()" style="display:block; margin-top:2px;">
+                    <input type="color" id="notifTextColor1" value="#ffffff" oninput="updateNotifStyle(1)" style="display:block; margin-top:2px;">
+                </div>
+            </div>
+        </div>
+
+        <!-- 캐릭터 2 속마음 -->
+        <div class="tool-section" style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0;">
+            <label style="color: #166534;">캐릭터 2 속마음</label>
+            <div class="tool-row" style="margin-bottom: 8px; margin-top: 4px;">
+                <label style="font-weight:normal; font-size:13px; color: #14532d; cursor:pointer;">
+                    <input type="checkbox" id="notifToggle2" onchange="toggleNotif(2, this.checked)"> 두 번째 알림창 표시
+                </label>
+            </div>
+            <div id="notifControls2" style="display:none; flex-direction: column; gap: 12px; margin-top: 8px;">
+                <div>
+                    <select id="notifStyleSelect2" onchange="changeNotifStyle(2, this.value)" style="width:100%; margin-top:2px;">
+                        <option value="popup">팝업 형태 (중앙 정렬)</option>
+                        <option value="bubble">말풍선 형태 (우측 정렬)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 11px; color:#166534;">프로필 사진</label>
+                    <input type="file" accept="image/*" onchange="setNotifProfile(2, event)" style="width:100%; font-size:11px; margin-top:2px;">
+                </div>
+                <div>
+                    <label style="font-size: 11px; color:#166534;">배경 & 투명도</label>
+                    <div style="display:flex; gap: 6px; align-items:center; margin-top:2px;">
+                        <input type="color" id="notifBgColor2" value="#000000" oninput="updateNotifStyle(2)">
+                        <input type="range" id="notifOpacity2" min="0" max="100" value="70" style="flex:1;" oninput="updateNotifStyle(2)">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size: 11px; color:#166534;">텍스트 색상</label>
+                    <input type="color" id="notifTextColor2" value="#ffffff" oninput="updateNotifStyle(2)" style="display:block; margin-top:2px;">
                 </div>
             </div>
         </div>
@@ -308,6 +330,7 @@
         </div>
 
         <div class="tool-section" style="border:none; margin-top:auto;">
+            <button class="btn-reset" onclick="resetCanvas()">⟲ 전체 초기화 (새로 작성)</button>
             <button class="btn-capture" onclick="captureCanvas()">이미지로 저장하기</button>
         </div>
     </div>
@@ -320,14 +343,30 @@
                 <div class="editable-content" id="editableContent" contenteditable="true"></div>
                 
                 <div id="notifContainer">
-                    <div id="notifPopup" style="display:flex; align-items:center; width:100%; max-width: 450px; margin: 0 auto; background-color: rgba(0,0,0,0.7); border-radius: 50px; padding: 10px 18px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div class="notif-profile-img" style="width: 36px; height: 36px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
-                        <div class="notif-text" contenteditable="true" style="flex:1; text-align:center; color: white; outline:none; padding: 0 10px; font-size:15px; word-break: break-all;">속마음을 입력하세요...</div>
+                    <!-- 캐릭터 1 래퍼 -->
+                    <div id="notifWrapper1" style="display:none; width: 100%; flex-direction: column;">
+                        <div id="notifPopup1" style="display:flex; align-items:center; width:100%; max-width: 450px; margin: 0 auto; background-color: rgba(0,0,0,0.7); border-radius: 50px; padding: 10px 18px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <div class="notif-profile-img1" style="width: 36px; height: 36px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
+                            <div class="notif-text" contenteditable="true" style="flex:1; text-align:center; color: white; outline:none; padding: 0 10px; font-size:15px; word-break: break-all;">속마음을 입력하세요...</div>
+                        </div>
+
+                        <div id="notifBubble1" style="display:none; align-items:flex-end; width:100%;">
+                            <div class="notif-profile-img1" style="width: 46px; height: 46px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; margin-right: 12px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
+                            <div class="notif-text" contenteditable="true" style="background-color: rgba(0,0,0,0.7); color: white; border-radius: 20px; border-bottom-left-radius: 4px; padding: 12px 18px; max-width: 80%; outline:none; font-size:15px; line-height:1.4; word-break: break-all; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">속마음을 입력하세요...</div>
+                        </div>
                     </div>
 
-                    <div id="notifBubble" style="display:none; align-items:flex-end; width:100%;">
-                        <div class="notif-profile-img" style="width: 46px; height: 46px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; margin-right: 12px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
-                        <div class="notif-text" contenteditable="true" style="background-color: rgba(0,0,0,0.7); color: white; border-radius: 20px; border-bottom-left-radius: 4px; padding: 12px 18px; max-width: 80%; outline:none; font-size:15px; line-height:1.4; word-break: break-all; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">속마음을 입력하세요...</div>
+                    <!-- 캐릭터 2 래퍼 -->
+                    <div id="notifWrapper2" style="display:none; width: 100%; flex-direction: column;">
+                        <div id="notifPopup2" style="display:flex; align-items:center; width:100%; max-width: 450px; margin: 0 auto; background-color: rgba(0,0,0,0.7); border-radius: 50px; padding: 10px 18px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <div class="notif-profile-img2" style="width: 36px; height: 36px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
+                            <div class="notif-text" contenteditable="true" style="flex:1; text-align:center; color: white; outline:none; padding: 0 10px; font-size:15px; word-break: break-all;">두 번째 속마음을 입력하세요...</div>
+                        </div>
+
+                        <div id="notifBubble2" style="display:none; align-items:flex-end; width:100%; justify-content: flex-end;">
+                            <div class="notif-text" contenteditable="true" style="background-color: rgba(0,0,0,0.7); color: white; border-radius: 20px; border-bottom-right-radius: 4px; padding: 12px 18px; max-width: 80%; outline:none; font-size:15px; line-height:1.4; word-break: break-all; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: right;">두 번째 속마음을 입력하세요...</div>
+                            <div class="notif-profile-img2" style="width: 46px; height: 46px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; margin-left: 12px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -514,7 +553,6 @@
             sticker.style.transform = `translate(${state.transform.x}px, ${state.transform.y}px) rotate(${state.transform.rotation}deg)`;
         }
         
-        // [수정1] PC 마우스일 때는 브라우저 개입 안 함, 터치일 때만 개입하도록 조건 추가
         let isMoving = false, moveStartX, moveStartY;
         const startMove = (e) => {
             isMoving = true;
@@ -594,7 +632,6 @@
                 actionOccurred = true;
             }
 
-            // 터치 환경에서만 스크롤을 막아 PC는 쾌적하게 유지
             if(actionOccurred && e.type.includes('touch')) {
                 e.preventDefault();
             }
@@ -610,16 +647,47 @@
         document.addEventListener('touchend', onEnd);
     }
 
-    function toggleNotif(show) {
-        document.getElementById('notifControls').style.display = show ? 'flex' : 'none';
-        document.getElementById('notifContainer').style.display = show ? 'block' : 'none';
-        if (show) updateNotifStyle();
+    // --- 전체 초기화 함수 ---
+    function resetCanvas() {
+        if(!confirm("작성 중인 내용과 추가한 스티커가 모두 지워집니다. 새로 작성하시겠습니까?")) return;
+        
+        // 본문 초기화
+        document.getElementById('editableContent').innerHTML = '';
+        
+        // 스티커 모두 제거
+        document.querySelectorAll('.sticker').forEach(el => el.remove());
+        
+        // 알림창 텍스트 초기화 (기본값)
+        const popup1 = document.getElementById('notifPopup1').querySelector('.notif-text');
+        const bubble1 = document.getElementById('notifBubble1').querySelector('.notif-text');
+        popup1.innerHTML = '속마음을 입력하세요...';
+        bubble1.innerHTML = '속마음을 입력하세요...';
+
+        const popup2 = document.getElementById('notifPopup2').querySelector('.notif-text');
+        const bubble2 = document.getElementById('notifBubble2').querySelector('.notif-text');
+        popup2.innerHTML = '두 번째 속마음을 입력하세요...';
+        bubble2.innerHTML = '두 번째 속마음을 입력하세요...';
+
         fitCanvasToScreen(); 
     }
 
-    function changeNotifStyle(style) {
-        const popup = document.getElementById('notifPopup');
-        const bubble = document.getElementById('notifBubble');
+    // --- 멀티 알림창 로직 ---
+    function toggleNotif(num, show) {
+        document.getElementById('notifControls' + num).style.display = show ? 'flex' : 'none';
+        document.getElementById('notifWrapper' + num).style.display = show ? 'flex' : 'none';
+        
+        if (show) updateNotifStyle(num);
+
+        const show1 = document.getElementById('notifToggle1').checked;
+        const show2 = document.getElementById('notifToggle2').checked;
+        document.getElementById('notifContainer').style.display = (show1 || show2) ? 'flex' : 'none';
+
+        fitCanvasToScreen(); 
+    }
+
+    function changeNotifStyle(num, style) {
+        const popup = document.getElementById('notifPopup' + num);
+        const bubble = document.getElementById('notifBubble' + num);
         const popupText = popup.querySelector('.notif-text');
         const bubbleText = bubble.querySelector('.notif-text');
 
@@ -641,28 +709,28 @@
         return `rgba(${r}, ${g}, ${b}, ${opacity / 100})`;
     }
 
-    function updateNotifStyle() {
-        const bgColorHex = document.getElementById('notifBgColor').value;
-        const opacity = document.getElementById('notifOpacity').value;
-        const textColor = document.getElementById('notifTextColor').value;
+    function updateNotifStyle(num) {
+        const bgColorHex = document.getElementById('notifBgColor' + num).value;
+        const opacity = document.getElementById('notifOpacity' + num).value;
+        const textColor = document.getElementById('notifTextColor' + num).value;
         const rgba = hexToRgba(bgColorHex, opacity);
         
-        const popup = document.getElementById('notifPopup');
+        const popup = document.getElementById('notifPopup' + num);
         popup.style.backgroundColor = rgba;
         popup.querySelector('.notif-text').style.color = textColor;
         
-        const bubbleText = document.getElementById('notifBubble').querySelector('.notif-text');
+        const bubbleText = document.getElementById('notifBubble' + num).querySelector('.notif-text');
         bubbleText.style.backgroundColor = rgba;
         bubbleText.style.color = textColor;
     }
 
-    function setNotifProfile(event) {
+    function setNotifProfile(num, event) {
         const file = event.target.files[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const url = `url('${e.target.result}')`;
-                document.querySelectorAll('.notif-profile-img').forEach(el => {
+                document.querySelectorAll('.notif-profile-img' + num).forEach(el => {
                     el.style.backgroundImage = url;
                 });
             };
@@ -674,13 +742,11 @@
         if (document.activeElement) document.activeElement.blur();
         const canvasContainer = document.getElementById('captureCanvas');
         
-        // [수정2] 모바일 화질 저하 방지: 캡처 직전 물리적으로 캔버스 크기를 100%로 펴서 브라우저의 강제 고화질 새로고침(Repaint) 유도
         const originalTransform = canvasContainer.style.transform;
         canvasContainer.style.transform = 'none'; 
         
         canvasContainer.classList.add('is-capturing');
         
-        // 브라우저가 선명하게 다시 그릴 수 있도록 0.3초(300ms) 여유를 줍니다.
         setTimeout(() => {
             htmlToImage.toPng(canvasContainer, { 
                 pixelRatio: 2,
@@ -698,7 +764,7 @@
                 document.body.removeChild(link);
                 
                 canvasContainer.classList.remove('is-capturing');
-                canvasContainer.style.transform = originalTransform; // 캡처 완료 후 다시 원상복구
+                canvasContainer.style.transform = originalTransform; 
             })
             .catch(function (error) {
                 alert("이미지 저장 실패: " + error);
