@@ -11,7 +11,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap" rel="stylesheet">
 
-<!-- DOM -> PNG 변환 -->
+<!-- DOM -> PNG 변환: html2canvas(기본, 화면과 동일한 줄바꿈 보장) + html-to-image(폴백) -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
 
 <style>
@@ -328,6 +329,19 @@
 
   /* 캡처 중: 모든 편집 UI 숨김 */
   .canvas.capturing{ box-shadow:none; }
+  /* html2canvas는 box-shadow를 못 그리므로, 캡처 중에는 유사 그림자로 대체 */
+  .canvas.capturing .thought.popup,
+  .canvas.capturing .thought.bubble .th-main{ box-shadow:none; position:relative; }
+  .canvas.capturing .thought.popup::before,
+  .canvas.capturing .thought.bubble .th-main::before{
+    content:''; position:absolute; inset:0; transform:translateY(2px);
+    border-radius:inherit; background:rgba(0,0,0,.06); z-index:-1;
+  }
+  .canvas.capturing .thought.popup::after,
+  .canvas.capturing .thought.bubble .th-main::after{
+    content:''; position:absolute; inset:2px; transform:translateY(4px);
+    border-radius:inherit; background:rgba(0,0,0,.07); z-index:-1;
+  }
   .canvas.capturing .handle,
   .canvas.capturing .rotate-handle,
   .canvas.capturing .del-btn,
@@ -1112,6 +1126,38 @@
     return fontEmbedCache;
   }
 
+  // html2canvas는 여러 줄에 걸친 인라인 배경(형광펜)을 하나의 큰 사각형으로
+  // 잘못 칠한다("벽돌" 현상). 캡처 직전에 형광펜을 줄 단위 사각형으로 분해해
+  // 본문 아래(z=4)에 따로 그려 두고, 원본 배경은 잠시 투명 처리한다.
+  function buildHighlightOverlays(){
+    const created = [], modified = [];
+    const base = canvas.getBoundingClientRect();   // transform:none 상태에서 호출할 것
+    canvas.querySelectorAll('[contenteditable="true"] *').forEach(el => {
+      const bg = el.style && el.style.backgroundColor;
+      if (!bg || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)') return;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const rects = range.getClientRects();
+      for (let i = 0; i < rects.length; i++){
+        const r = rects[i];
+        if (r.width < 0.5 || r.height < 0.5) continue;
+        const d = document.createElement('div');
+        d.className = 'hl-rect';
+        d.style.cssText = 'position:absolute;pointer-events:none;z-index:4;background:' + bg +
+          ';left:' + (r.left - base.left) + 'px;top:' + (r.top - base.top) +
+          'px;width:' + r.width + 'px;height:' + r.height + 'px;';
+        canvas.appendChild(d);
+        created.push(d);
+      }
+      modified.push([el, bg]);
+      el.style.backgroundColor = 'transparent';
+    });
+    return function cleanup(){
+      created.forEach(d => d.remove());
+      modified.forEach(p => { p[0].style.backgroundColor = p[1]; });
+    };
+  }
+
   async function saveImage(){
     const sel = window.getSelection(); if (sel) sel.removeAllRanges();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -1125,22 +1171,44 @@
     btn.textContent = '저장 준비 중…'; btn.disabled = true;
 
     await ensureFontsLoaded();
-    const fontEmbedCSS = await getFontCSS();
     await nextFrames(4);
+
+    // 형광펜을 줄 단위 사각형으로 분해 (좌표는 transform:none 기준)
+    const cleanupHighlights = buildHighlightOverlays();
 
     const w = 600;
     const h = Math.ceil(canvas.offsetHeight);   // 폰트 확정 후 높이 재측정
     let dataUrl = null;
+
     try {
-      dataUrl = await window.htmlToImage.toPng(canvas, {
-        width: w, height: h,
-        canvasWidth: w*2, canvasHeight: h*2,
-        backgroundColor: null,
-        fontEmbedCSS: fontEmbedCSS,
-        style: { transform:'none', margin:'0', left:'0', top:'0' }
-      });
-    } catch(err){
-      alert('이미지 저장 중 문제가 발생했어요.\n다시 시도해 주세요.\n(' + err + ')');
+      // 1차: html2canvas — 화면에 실제로 렌더된 글자 위치를 그대로 그리므로
+      //       저장본의 줄바꿈이 미리보기와 항상 일치한다.
+      try {
+        const out = await window.html2canvas(canvas, {
+          scale: 2,                 // 고해상도 2배
+          width: w, height: h,
+          backgroundColor: null,    // 둥근 모서리 밖은 투명
+          useCORS: true,
+          logging: false
+        });
+        dataUrl = out.toDataURL('image/png');
+      } catch(err1){
+        // 2차 폴백: html-to-image (줄바꿈이 어긋날 수 있으나 저장 자체는 가능)
+        try {
+          const fontEmbedCSS = await getFontCSS();
+          dataUrl = await window.htmlToImage.toPng(canvas, {
+            width: w, height: h,
+            canvasWidth: w*2, canvasHeight: h*2,
+            backgroundColor: null,
+            fontEmbedCSS: fontEmbedCSS,
+            style: { transform:'none', margin:'0', left:'0', top:'0' }
+          });
+        } catch(err2){
+          alert('이미지 저장 중 문제가 발생했어요.\n다시 시도해 주세요.\n(' + err2 + ')');
+        }
+      }
+    } finally {
+      cleanupHighlights();   // 어떤 경우든 형광펜 원상 복구
     }
 
     canvas.style.transform = prevTransform;
