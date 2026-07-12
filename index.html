@@ -1,790 +1,1126 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>지문 발췌 에디터 - v13</title>
-    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
-    <style>
-        :root {
-            --bg-app: #f0f2f5;
-            --bg-sidebar: #ffffff;
-            --border-color: #e2e8f0;
-            --text-main: #334155;
-            --accent: #3b82f6;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지문 발췌기</title>
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+<!-- 웹폰트: 본문용 (고딕=Pretendard, 명조=Nanum Myeongjo) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap" rel="stylesheet">
 
-        body {
-            font-family: 'Pretendard', sans-serif;
-            background-color: var(--bg-app);
-            color: var(--text-main);
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
+<!-- DOM -> PNG 변환 -->
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
 
-        .app-container { display: flex; flex: 1; flex-direction: column; }
+<style>
+  :root{
+    --bg:#ffffff;            /* 사이드바 배경 */
+    --panel:#f5f7f9;         /* 섹션 표면 */
+    --panel-2:#eef2f5;       /* 세그먼트 등 */
+    --line:#dde4ea;          /* 경계선 */
+    --accent:#74a5c2;        /* 포인트 (채도 낮은 하늘색) */
+    --accent-strong:#517f9d; /* 진한 포인트 (글자/hover) */
+    --accent-weak:#e7f0f5;   /* 옅은 틴트 */
+    --txt:#2b3138;           /* 기본 글자 */
+    --muted:#6a7480;         /* 흐린 글자 */
+    --danger:#d9695c;
+    --paper:#e8ebef;         /* 작업 영역 배경 */
+    --radius:10px;
+  }
 
-        .toolbar {
-            background-color: var(--bg-sidebar);
-            border-bottom: 1px solid var(--border-color);
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            z-index: 100;
-        }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{
+    font-family:'Pretendard','Pretendard Variable',system-ui,sans-serif;
+    color:var(--txt);
+    background:var(--paper);
+    overflow:hidden;
+  }
+  button{ font-family:inherit; }
 
-        .tool-section {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding-bottom: 15px;
-            border-bottom: 1px dashed #cbd5e1;
-        }
-        .tool-section:last-child { border-bottom: none; }
-        .tool-section label { font-size: 13px; font-weight: 600; color: #64748b; }
-        .tool-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .app{ display:flex; height:100vh; width:100%; }
 
-        select, input[type="color"], button {
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background-color: #fff;
-            font-family: inherit;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
+  /* ---------------- 사이드바 ---------------- */
+  .sidebar{
+    width:342px; flex:0 0 342px;
+    background:var(--bg);
+    border-right:1px solid var(--line);
+    height:100vh; overflow-y:auto;
+    padding:20px 18px 60px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:11px;
+    padding-bottom:15px; margin-bottom:17px;
+    border-bottom:1px solid var(--line);
+  }
+  .brand .mark{
+    width:30px; height:30px; border-radius:9px;
+    background:var(--accent);
+    display:flex; align-items:center; justify-content:center;
+    color:#ffffff; flex:0 0 auto;
+  }
+  .brand .mark svg{ width:17px; height:17px; }
+  .brand h1{ font-size:16px; margin:0; letter-spacing:-0.2px; }
 
-        select:focus, button:focus { outline: none; border-color: var(--accent); }
-        button:hover { background-color: #f8fafc; border-color: #cbd5e1; }
+  .group{ margin-bottom:14px; }
+  .group > .glabel{
+    font-size:11px; font-weight:700; letter-spacing:0.5px;
+    color:var(--accent-strong); text-transform:uppercase; margin:0 0 8px 2px;
+  }
+  .field{ margin-bottom:11px; }
+  .field:last-child{ margin-bottom:0; }
+  .field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .row{ display:flex; gap:8px; align-items:center; }
+  .row.wrap{ flex-wrap:wrap; }
 
-        .btn-capture {
-            background-color: var(--accent);
-            color: white;
-            font-weight: bold;
-            border: none;
-            padding: 12px;
-            width: 100%;
-        }
-        .btn-capture:hover { background-color: #2563eb; }
+  select, input[type="text"]{
+    width:100%; background:#fff; color:var(--txt);
+    border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; font-size:13px; outline:none;
+  }
+  select:focus, input:focus{ border-color:var(--accent); }
 
-        .btn-danger { color: #ef4444; border-color: #fca5a5; }
-        .btn-danger:hover { background-color: #fef2f2; }
-        
-        .btn-reset { background-color: #fef2f2; color: #ef4444; border: 1px solid #fca5a5; font-weight: bold; padding: 12px; width: 100%; margin-bottom: 8px; }
-        .btn-reset:hover { background-color: #fee2e2; }
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none; width:100%; height:4px;
+    background:var(--line); border-radius:4px; outline:none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background:var(--accent); cursor:pointer; border:2px solid #fff; box-shadow:0 0 0 1px var(--line);
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:16px; height:16px; border-radius:50%; background:var(--accent);
+    cursor:pointer; border:2px solid #fff;
+  }
 
-        .btn-apply { background-color: #f1f5f9; padding: 6px 10px; font-size: 12px; }
-        input[type="color"] { padding: 0; width: 28px; height: 28px; border-radius: 4px; }
+  input[type="color"]{
+    -webkit-appearance:none; appearance:none;
+    width:38px; height:34px; padding:0; border:1px solid var(--line);
+    border-radius:8px; background:#fff; cursor:pointer; flex:0 0 auto;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper{ padding:3px; }
+  input[type="color"]::-webkit-color-swatch{ border:none; border-radius:5px; }
 
-        .viewer-area {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 40px 20px;
-            overflow: auto; 
-            overflow-x: hidden;
-        }
+  .btn{
+    background:#fff; color:var(--txt);
+    border:1px solid var(--line); border-radius:8px;
+    padding:8px 12px; font-size:12.5px; font-weight:600;
+    cursor:pointer; transition:.12s; white-space:nowrap;
+  }
+  .btn:hover{ border-color:var(--accent); color:var(--accent-strong); }
+  .btn:active{ transform:translateY(1px); }
+  .btn.wide{ width:100%; display:block; text-align:center; }
+  .btn.accent{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.accent:hover{ background:var(--accent-strong); color:#fff; border-color:var(--accent-strong); }
+  .btn.ghost-danger{ color:var(--danger); border-color:transparent; background:transparent; }
+  .btn.ghost-danger:hover{ background:rgba(217,105,92,.10); border-color:var(--danger); color:var(--danger); }
+  .btn.sm{ padding:6px 10px; font-size:12px; }
+  .btn.tiny{ padding:5px 8px; font-size:11.5px; }
+  .btn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
 
-        /* NEW: 구조 변경. 캔버스 래퍼와 스케일러 분리 */
-        .canvas-wrapper {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-        }
+  .fmt-row{ display:flex; gap:6px; }
+  .fmt-row .btn{ flex:1; text-align:center; }
+  .fmt-b{ font-weight:800; }
+  .fmt-i{ font-style:italic; }
+  .fmt-s{ text-decoration:line-through; }
 
-        #canvasScaler {
-            width: 600px;
-            transform-origin: top center;
-            /* 캡처 시 흔들림 방지를 위해 transition 최소화 */
-        }
+  .valtag{ font-size:12px; color:var(--accent-strong); font-variant-numeric:tabular-nums; min-width:44px; text-align:right; }
 
-        .capture-canvas {
-            width: 600px;
-            min-width: 600px;
-            min-height: 400px;
-            position: relative;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-            background-color: #ffffff; 
-            display: flex;
-            flex-direction: column;
-            /* 이전에 있던 transform 관련 속성 모두 제거 (오류 원인 차단) */
-        }
+  /* 색상 히스토리 */
+  .swatches{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .swatches:empty{ display:none; }
+  .swatch{
+    width:20px; height:20px; border-radius:5px; padding:0; cursor:pointer;
+    border:1px solid rgba(0,0,0,.15); transition:transform .1s;
+  }
+  .swatch:hover{ transform:scale(1.12); }
+  .swatch-clear{
+    height:20px; padding:0 7px; border-radius:5px; cursor:pointer;
+    border:1px solid var(--line); background:#fff; color:var(--muted);
+    font-size:10.5px; font-weight:600; font-family:inherit; line-height:1;
+  }
+  .swatch-clear:hover{ color:var(--danger); border-color:var(--danger); }
 
-        #bgLayer, #overlayLayer {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-        }
+  /* 접이식 섹션 */
+  .collapse{ border:1px solid var(--line); border-radius:var(--radius); margin-bottom:12px; overflow:hidden; background:var(--panel); }
+  .collapse > .head{
+    width:100%; text-align:left; background:transparent; border:none; color:var(--txt);
+    padding:13px 14px; font-size:13.5px; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .collapse > .head:hover{ color:var(--accent-strong); }
+  .collapse > .head .chev{ transition:.2s; color:var(--muted); font-size:12px; }
+  .collapse.open > .head .chev{ transform:rotate(180deg); }
+  .collapse > .body{ display:none; padding:4px 14px 16px; border-top:1px solid var(--line); }
+  .collapse.open > .body{ display:block; }
 
-        #bgLayer { z-index: 1; background-color: transparent; background-size: cover; background-position: center; transition: background 0.3s; }
-        #overlayLayer { z-index: 2; background-color: rgba(0,0,0,0); pointer-events: none; }
+  .subcard{ background:#fff; border:1px solid var(--line); border-radius:9px; padding:12px; margin-top:10px; }
+  .subcard h4{ margin:0 0 10px; font-size:12.5px; color:var(--accent-strong); display:flex; align-items:center; gap:8px; }
+  .seg{ display:flex; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:3px; gap:3px; }
+  .seg .btn{ flex:1; border:none; background:transparent; text-align:center; }
+  .seg .btn.active{ background:var(--accent); color:#fff; }
 
-        .editable-content {
-            position: relative;
-            z-index: 3;
-            flex: 1;
-            outline: none;
-            
-            /* 텍스트 렌더링 최적화 (줄바꿈 오차 방지) */
-            word-break: break-all;
-            overflow-wrap: break-word;
-            text-rendering: geometricPrecision;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
+  .hint{ font-size:11px; color:var(--muted); line-height:1.5; margin-top:6px; }
 
-            white-space: pre-wrap;
-            padding: 50px 40px 20px 40px; 
-            font-family: 'Pretendard', sans-serif;
-            font-size: 16px;
-            line-height: 1.6;
-            color: #1e293b;
-        }
-        
-        .editable-content * { font-family: inherit !important; font-size: inherit !important; }
-        .editable-content span { padding: 2px 0; }
-        .editable-content:empty:before { content: "여기에 지문을 붙여넣거나 입력하세요"; color: #94a3b8; font-style: italic; }
+  .file-btn{ position:relative; overflow:hidden; }
+  .file-btn input[type="file"]{ position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
 
-        #notifContainer {
-            display: none; 
-            flex-direction: column;
-            gap: 12px;
-            position: relative;
-            z-index: 20;
-            padding: 10px 40px 40px 40px; 
-        }
+  .actions{ position:sticky; bottom:0; margin-top:8px; }
 
-        /* === 스티커 컴포넌트 === */
-        .sticker { position: absolute; z-index: 10; background: transparent; min-width: 50px; border: 1px dashed transparent; transform-origin: center center; padding: 10px; }
-        .sticker:hover, .sticker:focus-within { border-color: #3b82f6; background-color: rgba(241, 245, 249, 0.3); }
-        .sticker-style-btn, .sticker-close, .sticker-resize-handle, .sticker-width-handle, .sticker-rotate-handle, .sticker-move-overlay { touch-action: none; }
-        .sticker-style-btn { position: absolute; top: -10px; left: -10px; background: #3b82f6; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; font-weight: bold; font-family: serif; cursor: pointer; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .sticker:hover .sticker-style-btn, .sticker:focus-within .sticker-style-btn { display: block; }
-        .sticker-close { position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; font-weight: bold; cursor: pointer; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .sticker:hover .sticker-close, .sticker:focus-within .sticker-close { display: block; }
-        .sticker-resize-handle { position: absolute; width: 18px; height: 18px; background-color: #3b82f6; border: 2px solid white; border-radius: 50%; bottom: -9px; right: -9px; cursor: se-resize; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .sticker:hover .sticker-resize-handle, .sticker:focus-within .sticker-resize-handle { display: block; }
-        .sticker-width-handle { position: absolute; width: 12px; height: 22px; background-color: #f59e0b; border: 2px solid white; border-radius: 4px; top: calc(50% - 11px); right: -8px; cursor: ew-resize; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .sticker:hover .sticker-width-handle, .sticker:focus-within .sticker-width-handle { display: block; }
-        .sticker-rotate-handle { position: absolute; width: 16px; height: 16px; background-color: #10b981; border: 2px solid white; border-radius: 50%; top: -27px; left: calc(50% - 8px); cursor: grab; display: none; z-index: 15; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .sticker-rotate-line { position: absolute; width: 1px; height: 15px; background-color: #10b981; top: -15px; left: 50%; display: none; z-index: 14; }
-        .sticker:hover .sticker-rotate-handle, .sticker:focus-within .sticker-rotate-handle { display: block; }
-        .sticker:hover .sticker-rotate-line, .sticker:focus-within .sticker-rotate-line { display: block; }
-        .sticker-move-overlay { position: absolute; top: 0; left: 0; right: 0; height: 15px; background-color: transparent; cursor: move; }
-        .sticker-text { width: 100%; height: auto; outline: none; font-family: inherit; white-space: pre-wrap; word-break: break-word; padding: 4px 6px; line-height: 1.4; border-radius: 6px; transition: background 0.2s, color 0.2s; }
+  /* ---------------- 작업 영역 ---------------- */
+  .workspace{
+    flex:1; height:100vh; overflow:auto;
+    display:flex; justify-content:center; align-items:flex-start;
+    padding:34px 32px 80px;
+  }
+  .canvas-wrap{ position:relative; }
 
-        .is-capturing .sticker { border-color: transparent !important; background-color: transparent !important; }
-        .is-capturing .sticker-close,
-        .is-capturing .sticker-style-btn,
-        .is-capturing .sticker-resize-handle,
-        .is-capturing .sticker-width-handle,
-        .is-capturing .sticker-rotate-handle,
-        .is-capturing .sticker-rotate-line,
-        .is-capturing .sticker-move-overlay { display: none !important; }
+  .canvas{
+    position:relative;
+    width:600px;
+    min-height:440px;
+    transform-origin:top left;
+    box-shadow:0 14px 44px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.08);
+    overflow:hidden;
+    background:#ffffff;
+    user-select:none;
+  }
+  .bg-layer{ position:absolute; inset:0; z-index:1; background:#ffffff; }
+  .overlay-layer{ position:absolute; inset:0; z-index:2; pointer-events:none; background:transparent; }
 
-        @media (min-width: 768px) {
-            .app-container { flex-direction: row; }
-            .toolbar { width: 340px; border-bottom: none; border-right: 1px solid var(--border-color); height: 100vh; position: fixed; left: 0; top: 0; overflow-y: auto; }
-            .viewer-area { margin-left: 340px; padding: 60px 40px; }
-        }
-    </style>
+  .body-text{
+    position:relative; z-index:5;
+    padding:44px 42px;
+    min-height:240px;
+    background:transparent;
+    color:#222222;
+    font-size:18px; line-height:1.85;
+    font-family:'Pretendard','Pretendard Variable',sans-serif;
+    outline:none; white-space:pre-wrap; word-break:break-word;
+    caret-color:var(--accent);
+  }
+  .body-text.is-empty:before{
+    content:attr(data-ph); color:currentColor; opacity:.4; pointer-events:none;
+  }
+
+  /* 스티커 공통 */
+  .sticker{ position:absolute; touch-action:none; }
+  .sticker .handle,
+  .sticker .rotate-handle,
+  .sticker .del-btn,
+  .sticker .style-btn,
+  .sticker .move-grip,
+  .sticker .op-wrap{ opacity:0; transition:opacity .12s; pointer-events:none; }
+  .sticker:hover .handle,
+  .sticker:hover .rotate-handle,
+  .sticker:hover .del-btn,
+  .sticker:hover .style-btn,
+  .sticker:hover .move-grip,
+  .sticker:hover .op-wrap,
+  .sticker.sel .handle,
+  .sticker.sel .rotate-handle,
+  .sticker.sel .del-btn,
+  .sticker.sel .style-btn,
+  .sticker.sel .move-grip,
+  .sticker.sel .op-wrap{ opacity:1; pointer-events:auto; }
+
+  .handle{
+    position:absolute; width:13px; height:13px; border-radius:50%;
+    background:#3d7bf2; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4);
+    touch-action:none; z-index:3;
+  }
+  .handle.tl{ left:-7px; top:-7px; cursor:nwse-resize; }
+  .handle.tr{ right:-7px; top:-7px; cursor:nesw-resize; }
+  .handle.bl{ left:-7px; bottom:-7px; cursor:nesw-resize; }
+  .handle.br{ right:-7px; bottom:-7px; cursor:nwse-resize; }
+  .handle.side{ background:#f2953d; top:50%; right:-7px; transform:translateY(-50%); cursor:ew-resize; }
+  .rotate-handle{
+    position:absolute; width:14px; height:14px; border-radius:50%;
+    background:#2fbf71; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4);
+    left:50%; top:-30px; transform:translateX(-50%); cursor:grab; touch-action:none; z-index:3;
+  }
+  .rotate-handle:before{
+    content:''; position:absolute; left:50%; top:14px; width:1px; height:16px;
+    background:rgba(120,120,120,.6); transform:translateX(-50%);
+  }
+  .del-btn{
+    position:absolute; right:-11px; top:-11px; width:20px; height:20px; border-radius:50%;
+    background:var(--danger); color:#fff; border:2px solid #fff; cursor:pointer;
+    font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center;
+    z-index:4; padding:0;
+  }
+
+  /* 이미지 스티커 */
+  .img-sticker{ z-index:20; }
+  .img-sticker:hover, .img-sticker.sel{ outline:1px dashed rgba(61,123,242,.7); outline-offset:2px; }
+  .img-sticker img{ display:block; width:100%; height:100%; -webkit-user-drag:none; user-select:none; touch-action:none; pointer-events:auto; }
+  .img-sticker.below{ pointer-events:none; z-index:3; outline:none !important; }
+  .op-wrap{
+    position:absolute; left:50%; bottom:-40px; transform:translateX(-50%);
+    background:rgba(20,22,28,.92); border-radius:20px; padding:6px 12px;
+    display:flex; align-items:center; gap:8px; white-space:nowrap; z-index:5;
+  }
+  .op-wrap input[type="range"]{ width:96px; }
+  .op-wrap span{ color:#fff; font-size:11px; font-variant-numeric:tabular-nums; min-width:32px; }
+
+  /* 텍스트 스티커 */
+  .text-sticker{ z-index:20; min-width:40px; }
+  .text-sticker:hover, .text-sticker.sel{ outline:1px dashed rgba(61,123,242,.7); outline-offset:2px; }
+  .text-sticker .ts-text{
+    outline:none; padding:8px 12px; font-size:24px; line-height:1.4;
+    color:#222; font-family:'Pretendard','Pretendard Variable',sans-serif;
+    word-break:break-word; white-space:pre-wrap; min-height:1em;
+  }
+  .text-sticker[data-bg="0"] .ts-text{ background:transparent; }
+  .text-sticker[data-bg="1"] .ts-text{ background:rgba(255,255,255,.82); color:#222; border-radius:8px; }
+  .text-sticker[data-bg="2"] .ts-text{ background:rgba(20,22,28,.82); color:#fff; border-radius:8px; }
+  .move-grip{
+    position:absolute; left:-9px; top:-9px; width:20px; height:20px; border-radius:6px;
+    background:#6b7280; border:2px solid #fff; cursor:move; color:#fff; z-index:4;
+    display:flex; align-items:center; justify-content:center; font-size:11px; touch-action:none;
+  }
+  .style-btn{
+    position:absolute; left:-11px; bottom:-11px; width:22px; height:22px; border-radius:50%;
+    background:#7c5cff; border:2px solid #fff; cursor:pointer; color:#fff; z-index:4;
+    font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center;
+  }
+
+  /* ============ 속마음 컨테이너 ============ */
+  .thoughts{
+    position:relative; z-index:9000;
+    display:flex; flex-direction:column; gap:14px;
+    padding:0 34px 38px;
+  }
+  .thought .th-text{ outline:none; word-break:break-word; }
+  .thought .th-profile{
+    width:44px; height:44px; border-radius:50%; flex:0 0 auto;
+    background-color:rgba(235,238,241,.85);
+    background-size:cover; background-position:center; background-repeat:no-repeat;
+  }
+
+  /* 팝업형 = 알약(pill) 알림 배너 */
+  .thought.popup{
+    align-self:center; width:90%; max-width:540px;
+    display:flex; align-items:center; gap:12px;
+    border-radius:999px; padding:8px 22px 8px 8px;
+    box-shadow:0 4px 14px rgba(0,0,0,.12);
+  }
+  .thought.popup .th-profile{ width:38px; height:38px; }
+  .thought.popup .th-main{ flex:1; min-width:0; }
+  .thought.popup .th-text{ text-align:center; font-size:15px; font-weight:600; line-height:1.4; }
+
+  /* 말풍선형 */
+  .thought.bubble{ display:flex; align-items:flex-end; gap:9px; max-width:82%; }
+  .thought.bubble[data-char="1"]{ align-self:flex-start; }
+  .thought.bubble[data-char="2"]{ align-self:flex-end; flex-direction:row-reverse; }
+  .thought.bubble .th-main{
+    border-radius:20px; padding:11px 16px; box-shadow:0 4px 14px rgba(0,0,0,.12); min-width:0;
+  }
+  .thought.bubble[data-char="1"] .th-main{ border-bottom-left-radius:6px; }
+  .thought.bubble[data-char="2"] .th-main{ border-bottom-right-radius:6px; text-align:right; }
+  .thought.bubble .th-text{ font-size:15px; line-height:1.5; }
+
+  /* 캡처 중: 모든 편집 UI 숨김 */
+  .canvas.capturing .handle,
+  .canvas.capturing .rotate-handle,
+  .canvas.capturing .del-btn,
+  .canvas.capturing .style-btn,
+  .canvas.capturing .move-grip,
+  .canvas.capturing .op-wrap{ display:none !important; }
+  .canvas.capturing .sticker,
+  .canvas.capturing .img-sticker{ outline:none !important; }
+  .canvas.capturing .is-empty:before{ content:'' !important; }
+
+  /* ---------------- 반응형 ---------------- */
+  @media (max-width:860px){
+    body{ overflow:auto; }
+    .app{ flex-direction:column; height:auto; }
+    .sidebar{ width:100%; flex:none; height:auto; max-height:none; border-right:none; border-bottom:1px solid var(--line); }
+    .workspace{ height:auto; padding:24px 16px 60px; }
+  }
+</style>
 </head>
 <body>
-
-<div class="app-container">
-    <div class="toolbar">
-        <div class="tool-section">
-            <label>기본 서체 및 크기</label>
-            <select onchange="updateCanvasFontFamily(this.value)" style="width: 100%; margin-bottom: 8px;">
-                <option value="'Pretendard', sans-serif">프리텐다드</option>
-                <option value="'Nanum Myeongjo', serif">나눔명조</option>
-            </select>
-            <div style="display:flex; align-items:center; gap:10px;">
-                <span style="font-size:12px; white-space:nowrap;">크기 <span id="fontSizeVal">16</span>px</span>
-                <input type="range" min="12" max="32" value="16" step="1" style="width: 100%;" oninput="updateCanvasFontSize(this.value)">
-            </div>
-        </div>
-
-        <div class="tool-section">
-            <label>선택 영역 서식</label>
-            <div class="tool-row">
-                <button onclick="formatText('bold')" title="굵게"><b>B</b></button>
-                <button onclick="formatText('italic')" title="기울임"><i>I</i></button>
-                <button onclick="formatText('strikeThrough')" title="취소선"><strike>S</strike></button>
-                <button class="btn-danger" onclick="removeHighlight()">형광펜 지우기</button>
-            </div>
-            <div class="tool-row" style="margin-top: 8px;">
-                <input type="color" id="textColorPicker" value="#1e293b" title="글자색">
-                <button class="btn-apply" onclick="applyCurrentTextColor()">글자색 적용</button>
-                
-                <input type="color" id="highlightColorPicker" value="#cce5ff" title="형광펜" style="margin-left: 8px;">
-                <button class="btn-apply" onclick="applyCurrentHighlightColor()">형광펜 적용</button>
-            </div>
-        </div>
-
-        <div class="tool-section" style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
-            <label>텍스트 삽입</label>
-            <p style="font-size: 11px; color: #64748b; margin-bottom: 8px; line-height: 1.5;">
-                <strong style="color:#3b82f6">파란 점:</strong> 글자/박스 비례 확대<br>
-                <strong style="color:#f59e0b">주황 점:</strong> 가로 폭 조절 (자동 줄바꿈)<br>
-                <strong style="color:#1e293b">A 버튼:</strong> 배경 스타일 변경
-            </p>
-            <button onclick="addAdvancedSticker()" style="width: 100%; background-color: #fff; font-weight: bold; border-color: #cbd5e1;">+ 텍스트 추가</button>
-        </div>
-
-        <!-- 캐릭터 1 속마음 -->
-        <div class="tool-section" style="background-color: #fdf4ff; padding: 15px; border-radius: 8px; border: 1px solid #fbcfe8;">
-            <label style="color: #a21caf;">캐릭터 1 속마음</label>
-            <div class="tool-row" style="margin-bottom: 8px; margin-top: 4px;">
-                <label style="font-weight:normal; font-size:13px; color: #701a75; cursor:pointer;">
-                    <input type="checkbox" id="notifToggle1" onchange="toggleNotif(1, this.checked)"> 첫 번째 알림창 표시
-                </label>
-            </div>
-            <div id="notifControls1" style="display:none; flex-direction: column; gap: 12px; margin-top: 8px;">
-                <div>
-                    <select id="notifStyleSelect1" onchange="changeNotifStyle(1, this.value)" style="width:100%; margin-top:2px;">
-                        <option value="popup">팝업 형태 (중앙 정렬)</option>
-                        <option value="bubble">말풍선 형태 (좌측 정렬)</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size: 11px; color:#86198f;">프로필 사진</label>
-                    <input type="file" accept="image/*" onchange="setNotifProfile(1, event)" style="width:100%; font-size:11px; margin-top:2px;">
-                </div>
-                <div>
-                    <label style="font-size: 11px; color:#86198f;">배경 & 투명도</label>
-                    <div style="display:flex; gap: 6px; align-items:center; margin-top:2px;">
-                        <input type="color" id="notifBgColor1" value="#000000" oninput="updateNotifStyle(1)">
-                        <input type="range" id="notifOpacity1" min="0" max="100" value="70" style="flex:1;" oninput="updateNotifStyle(1)">
-                    </div>
-                </div>
-                <div>
-                    <label style="font-size: 11px; color:#86198f;">텍스트 색상</label>
-                    <input type="color" id="notifTextColor1" value="#ffffff" oninput="updateNotifStyle(1)" style="display:block; margin-top:2px;">
-                </div>
-            </div>
-        </div>
-
-        <!-- 캐릭터 2 속마음 -->
-        <div class="tool-section" style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0;">
-            <label style="color: #166534;">캐릭터 2 속마음</label>
-            <div class="tool-row" style="margin-bottom: 8px; margin-top: 4px;">
-                <label style="font-weight:normal; font-size:13px; color: #14532d; cursor:pointer;">
-                    <input type="checkbox" id="notifToggle2" onchange="toggleNotif(2, this.checked)"> 두 번째 알림창 표시
-                </label>
-            </div>
-            <div id="notifControls2" style="display:none; flex-direction: column; gap: 12px; margin-top: 8px;">
-                <div>
-                    <select id="notifStyleSelect2" onchange="changeNotifStyle(2, this.value)" style="width:100%; margin-top:2px;">
-                        <option value="popup">팝업 형태 (중앙 정렬)</option>
-                        <option value="bubble">말풍선 형태 (우측 정렬)</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size: 11px; color:#166534;">프로필 사진</label>
-                    <input type="file" accept="image/*" onchange="setNotifProfile(2, event)" style="width:100%; font-size:11px; margin-top:2px;">
-                </div>
-                <div>
-                    <label style="font-size: 11px; color:#166534;">배경 & 투명도</label>
-                    <div style="display:flex; gap: 6px; align-items:center; margin-top:2px;">
-                        <input type="color" id="notifBgColor2" value="#000000" oninput="updateNotifStyle(2)">
-                        <input type="range" id="notifOpacity2" min="0" max="100" value="70" style="flex:1;" oninput="updateNotifStyle(2)">
-                    </div>
-                </div>
-                <div>
-                    <label style="font-size: 11px; color:#166534;">텍스트 색상</label>
-                    <input type="color" id="notifTextColor2" value="#ffffff" oninput="updateNotifStyle(2)" style="display:block; margin-top:2px;">
-                </div>
-            </div>
-        </div>
-
-        <div class="tool-section">
-            <label onclick="toggleBgEdit()" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; user-select:none; margin-bottom: 0;">
-                <span>배경 편집</span>
-                <span id="bgEditIcon">▼</span>
-            </label>
-            <div id="bgEditContent" style="display:none; flex-direction: column; gap: 12px; margin-top: 12px;">
-                <div class="tool-row">
-                    <button onclick="setBgStyle('#ffffff')">흰색</button>
-                    <button onclick="setBgStyle('#1e293b')">다크</button>
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: normal;">그라데이션 (시작 ~ 끝 색상)</label>
-                    <div style="display:flex; align-items:center; gap: 10px; margin-top: 4px;">
-                        <input type="color" id="gradStart" value="#f6d365" oninput="updateCustomGradient()">
-                        <span>~</span>
-                        <input type="color" id="gradEnd" value="#fda085" oninput="updateCustomGradient()">
-                    </div>
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: normal;">자유 배경색 선택</label>
-                    <input type="color" onchange="setBgStyle(this.value)" style="width:100%; margin-top:4px;">
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: normal;">이미지 삽입</label>
-                    <input type="file" id="bgImageInput" accept="image/*" onchange="setBgImage(event)" style="width:100%; font-size:12px; margin-top:4px;">
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: normal;">명도 조절 (어둡게 ← 원본 → 밝게)</label>
-                    <input type="range" min="-100" max="100" value="0" step="1" style="width: 100%; margin-top:4px;" oninput="updateBgBrightness(this.value)">
-                </div>
-            </div>
-        </div>
-
-        <div class="tool-section" style="border:none; margin-top:auto;">
-            <button class="btn-reset" onclick="resetCanvas()">⟲ 전체 초기화 (새로 작성)</button>
-            <button class="btn-capture" onclick="captureCanvas()">이미지로 저장하기</button>
-        </div>
+<div class="app">
+  <!-- ============ 사이드바 ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+          <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+          <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+          <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <h1>지문 발췌기</h1>
     </div>
 
-    <div class="viewer-area">
-        <div class="canvas-wrapper" id="canvasWrapper">
-            <!-- NEW: 스케일을 관리하는 분리된 래퍼 -->
-            <div id="canvasScaler">
-                <div class="capture-canvas" id="captureCanvas">
-                    <div id="bgLayer"></div>
-                    <div id="overlayLayer"></div>
-                    <div class="editable-content" id="editableContent" contenteditable="true"></div>
-                    
-                    <div id="notifContainer">
-                        <!-- 캐릭터 1 래퍼 -->
-                        <div id="notifWrapper1" style="display:none; width: 100%; flex-direction: column;">
-                            <div id="notifPopup1" style="display:flex; align-items:center; width:100%; max-width: 450px; margin: 0 auto; background-color: rgba(0,0,0,0.7); border-radius: 50px; padding: 10px 18px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                                <div class="notif-profile-img1" style="width: 36px; height: 36px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
-                                <div class="notif-text" contenteditable="true" style="flex:1; text-align:center; color: white; outline:none; padding: 0 10px; font-size:15px; word-break: break-all;">속마음을 입력하세요...</div>
-                            </div>
-
-                            <div id="notifBubble1" style="display:none; align-items:flex-end; width:100%;">
-                                <div class="notif-profile-img1" style="width: 46px; height: 46px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; margin-right: 12px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
-                                <div class="notif-text" contenteditable="true" style="background-color: rgba(0,0,0,0.7); color: white; border-radius: 20px; border-bottom-left-radius: 4px; padding: 12px 18px; max-width: 80%; outline:none; font-size:15px; line-height:1.4; word-break: break-all; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">속마음을 입력하세요...</div>
-                            </div>
-                        </div>
-
-                        <!-- 캐릭터 2 래퍼 -->
-                        <div id="notifWrapper2" style="display:none; width: 100%; flex-direction: column;">
-                            <div id="notifPopup2" style="display:flex; align-items:center; width:100%; max-width: 450px; margin: 0 auto; background-color: rgba(0,0,0,0.7); border-radius: 50px; padding: 10px 18px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                                <div class="notif-profile-img2" style="width: 36px; height: 36px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
-                                <div class="notif-text" contenteditable="true" style="flex:1; text-align:center; color: white; outline:none; padding: 0 10px; font-size:15px; word-break: break-all;">두 번째 속마음을 입력하세요...</div>
-                            </div>
-
-                            <div id="notifBubble2" style="display:none; align-items:flex-end; width:100%; justify-content: flex-end;">
-                                <div class="notif-text" contenteditable="true" style="background-color: rgba(0,0,0,0.7); color: white; border-radius: 20px; border-bottom-right-radius: 4px; padding: 12px 18px; max-width: 80%; outline:none; font-size:15px; line-height:1.4; word-break: break-all; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: right;">두 번째 속마음을 입력하세요...</div>
-                                <div class="notif-profile-img2" style="width: 46px; height: 46px; border-radius: 50%; background-color:#e2e8f0; background-size:cover; background-position:center; margin-left: 12px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2);"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <!-- 상시 노출: 서체 / 크기 -->
+    <div class="group">
+      <p class="glabel">본문 서식</p>
+      <div class="field">
+        <label>기본 서체</label>
+        <select id="fontFamily">
+          <option value="pretendard">프리텐다드 (고딕)</option>
+          <option value="myeongjo">나눔명조 (명조)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>기본 글자 크기</label>
+        <div class="row">
+          <input type="range" id="fontSize" min="12" max="32" value="18">
+          <span class="valtag" id="fontSizeVal">18px</span>
         </div>
+      </div>
+      <div class="field">
+        <label>선택 영역 서식</label>
+        <div class="fmt-row">
+          <button class="btn sm fmt-b" id="btnBold">가</button>
+          <button class="btn sm fmt-i" id="btnItalic">가</button>
+          <button class="btn sm fmt-s" id="btnStrike">가</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>글자색 (선택 영역)</label>
+        <div class="row">
+          <input type="color" id="foreColor" value="#74a5c2">
+          <button class="btn sm" id="btnFore" style="flex:1">적용</button>
+        </div>
+        <div class="swatches" id="foreHist"></div>
+      </div>
+      <div class="field">
+        <label>형광펜 (선택 영역)</label>
+        <div class="row">
+          <input type="color" id="hiliteColor" value="#ffe27a">
+          <button class="btn sm" id="btnHilite" style="flex:1">적용</button>
+          <button class="btn sm" id="btnHiliteClear">지우기</button>
+        </div>
+        <div class="swatches" id="hiliteHist"></div>
+      </div>
     </div>
+
+    <!-- 접이식: 추가 편집 -->
+    <div class="collapse" id="sec-extra">
+      <button class="head" data-toggle>추가 편집 <span class="chev">▾</span></button>
+      <div class="body">
+        <div class="field">
+          <button class="btn wide" id="btnAddText">＋ 텍스트 추가</button>
+        </div>
+        <div class="field">
+          <button class="btn wide file-btn">
+            🖼 이미지 스티커 올리기
+            <input type="file" id="imgUpload" accept="image/*">
+          </button>
+        </div>
+        <div class="field">
+          <label>이미지 위치 (전역)</label>
+          <button class="btn wide" id="btnToggleLayer">텍스트 위로 올리기 (편집하려면 클릭)</button>
+          <p class="hint">이미지가 텍스트 아래에 있으면 편집이 잠깁니다. 편집하려면 위로 올리세요.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 접이식: 캐릭터 속마음 -->
+    <div class="collapse" id="sec-thoughts">
+      <button class="head" data-toggle>캐릭터 속마음 추가 <span class="chev">▾</span></button>
+      <div class="body">
+        <!-- 캐릭터 1 -->
+        <div class="subcard">
+          <h4><input type="checkbox" id="th1-show"> 캐릭터 1 속마음</h4>
+          <div class="field">
+            <label>형태</label>
+            <div class="seg" data-th="1">
+              <button class="btn tiny active" data-type="popup">팝업형</button>
+              <button class="btn tiny" data-type="bubble">말풍선형(좌)</button>
+            </div>
+          </div>
+          <div class="field">
+            <button class="btn wide sm file-btn">프로필 사진 업로드<input type="file" id="th1-profile" accept="image/*"></button>
+          </div>
+          <div class="field">
+            <label>배경색 · 투명도</label>
+            <div class="row">
+              <input type="color" id="th1-bg" value="#2b2d33">
+              <input type="range" id="th1-bgop" min="0" max="100" value="88">
+              <span class="valtag" id="th1-bgop-v">88%</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>텍스트 색상</label>
+            <input type="color" id="th1-color" value="#ffffff" style="width:100%">
+          </div>
+        </div>
+        <!-- 캐릭터 2 -->
+        <div class="subcard">
+          <h4><input type="checkbox" id="th2-show"> 캐릭터 2 속마음</h4>
+          <div class="field">
+            <label>형태</label>
+            <div class="seg" data-th="2">
+              <button class="btn tiny active" data-type="popup">팝업형</button>
+              <button class="btn tiny" data-type="bubble">말풍선형(우)</button>
+            </div>
+          </div>
+          <div class="field">
+            <button class="btn wide sm file-btn">프로필 사진 업로드<input type="file" id="th2-profile" accept="image/*"></button>
+          </div>
+          <div class="field">
+            <label>배경색 · 투명도</label>
+            <div class="row">
+              <input type="color" id="th2-bg" value="#7d9cb5">
+              <input type="range" id="th2-bgop" min="0" max="100" value="92">
+              <span class="valtag" id="th2-bgop-v">92%</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>텍스트 색상</label>
+            <input type="color" id="th2-color" value="#ffffff" style="width:100%">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 접이식: 배경 편집 -->
+    <div class="collapse" id="sec-bg">
+      <button class="head" data-toggle>배경 편집 <span class="chev">▾</span></button>
+      <div class="body">
+        <div class="field">
+          <label>프리셋</label>
+          <div class="row">
+            <button class="btn sm" id="bgWhite" style="flex:1">흰색</button>
+            <button class="btn sm" id="bgDark" style="flex:1">다크</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>그라데이션 (시작 → 끝)</label>
+          <div class="row">
+            <input type="color" id="gradStart" value="#a8c5d6">
+            <input type="color" id="gradEnd" value="#dbe6ec">
+            <button class="btn sm" id="btnGrad" style="flex:1">적용</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>자유 배경색</label>
+          <div class="row">
+            <input type="color" id="bgColor" value="#ffffff">
+            <button class="btn sm" id="btnBgColor" style="flex:1">적용</button>
+          </div>
+        </div>
+        <div class="field">
+          <button class="btn wide sm file-btn">배경 이미지 삽입<input type="file" id="bgImage" accept="image/*"></button>
+        </div>
+        <div class="field">
+          <label>명도 (왼쪽 어둡게 · 오른쪽 밝게)</label>
+          <div class="row">
+            <input type="range" id="brightness" min="-100" max="100" value="0">
+            <span class="valtag" id="brightnessVal">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 액션 -->
+    <div class="group actions">
+      <div class="field">
+        <button class="btn accent wide" id="btnSave">이미지로 저장하기 (PNG)</button>
+      </div>
+      <div class="field">
+        <button class="btn ghost-danger wide" id="btnReset">전체 초기화</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ 캔버스 ============ -->
+  <main class="workspace" id="workspace">
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="canvas" id="canvas">
+        <div class="bg-layer" id="bgLayer"></div>
+        <div class="overlay-layer" id="overlay"></div>
+        <div class="body-text is-empty" id="bodyText" contenteditable="true"
+             data-ph="여기에 지문을 붙여넣거나 입력하세요"></div>
+        <div class="thoughts" id="thoughts">
+          <div class="thought popup" id="thought1" data-char="1" style="display:none">
+            <div class="th-profile" id="th1-img"></div>
+            <div class="th-main">
+              <div class="th-text" id="th1-text" contenteditable="true"></div>
+            </div>
+          </div>
+          <div class="thought popup" id="thought2" data-char="2" style="display:none">
+            <div class="th-profile" id="th2-img"></div>
+            <div class="th-main">
+              <div class="th-text" id="th2-text" contenteditable="true"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
 </div>
 
 <script>
-    function toggleBgEdit() {
-        const content = document.getElementById('bgEditContent');
-        const icon = document.getElementById('bgEditIcon');
-        if (content.style.display === 'none') {
-            content.style.display = 'flex';
-            icon.innerText = '▲';
-        } else {
-            content.style.display = 'none';
-            icon.innerText = '▼';
-        }
+(function(){
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const canvas   = $('#canvas');
+  const canvasWrap = $('#canvasWrap');
+  const workspace  = $('#workspace');
+  const bgLayer  = $('#bgLayer');
+  const overlay  = $('#overlay');
+  const bodyText = $('#bodyText');
+
+  let scale = 1;
+  let imagesBelow = true;   // 기본: 텍스트 아래
+  let zCounter = 20;
+
+  // ============================================================
+  // 스케일 / 반응형 레이아웃
+  // ============================================================
+  function relayout(){
+    const avail = workspace.clientWidth - 64;
+    scale = Math.min(1, Math.max(0.2, avail / 600));
+    canvas.style.transform = 'scale(' + scale + ')';
+    const h = canvas.offsetHeight;
+    canvasWrap.style.width  = (600 * scale) + 'px';
+    canvasWrap.style.height = (h * scale) + 'px';
+  }
+  window.addEventListener('resize', relayout);
+  if (window.ResizeObserver){ new ResizeObserver(() => relayout()).observe(canvas); }
+
+  // ============================================================
+  // 헬퍼
+  // ============================================================
+  function readFile(input, cb){
+    const f = input.files && input.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { cb(r.result); input.value = ''; };
+    r.readAsDataURL(f);
+  }
+  function hexToRgba(hex, a){
+    hex = String(hex).replace('#','');
+    if (hex.length === 3) hex = hex.split('').map(c => c+c).join('');
+    const n = parseInt(hex, 16);
+    return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+  }
+
+  // ============================================================
+  // 본문 텍스트
+  // ============================================================
+  const FONTS = {
+    pretendard: "'Pretendard','Pretendard Variable',sans-serif",
+    myeongjo:   "'Nanum Myeongjo',serif"
+  };
+  let defaultTextColor = '#222222';
+
+  function updateEmpty(){
+    const empty = bodyText.textContent.trim() === '' && !bodyText.querySelector('img');
+    bodyText.classList.toggle('is-empty', empty);
+  }
+  bodyText.addEventListener('input', updateEmpty);
+
+  $('#fontFamily').addEventListener('change', e => {
+    bodyText.style.fontFamily = FONTS[e.target.value] || FONTS.pretendard;
+  });
+  const fsSlider = $('#fontSize'), fsVal = $('#fontSizeVal');
+  fsSlider.addEventListener('input', () => {
+    bodyText.style.fontSize = fsSlider.value + 'px';
+    fsVal.textContent = fsSlider.value + 'px';
+  });
+
+  // ---- 선택 영역 저장/복원 ----
+  let savedRange = null, savedEl = null;
+  document.addEventListener('selectionchange', () => {
+    const s = window.getSelection();
+    if (!s.rangeCount) return;
+    const r = s.getRangeAt(0);
+    let node = r.commonAncestorContainer;
+    node = node.nodeType === 3 ? node.parentElement : node;
+    const editable = node && node.closest && node.closest('[contenteditable="true"]');
+    if (editable && canvas.contains(editable)){ savedRange = r.cloneRange(); savedEl = editable; }
+  });
+  function focusRestore(){
+    if (savedEl){
+      savedEl.focus();
+      if (savedRange){ const s = window.getSelection(); s.removeAllRanges(); s.addRange(savedRange); }
     }
+  }
+  try { document.execCommand('styleWithCSS', false, true); } catch(e){}
+  function exec(cmd, val){
+    focusRestore();
+    try { document.execCommand('styleWithCSS', false, true); } catch(e){}
+    document.execCommand(cmd, false, val === undefined ? null : val);
+  }
+  ['btnBold','btnItalic','btnStrike','btnFore','btnHilite','btnHiliteClear'].forEach(id => {
+    $('#'+id).addEventListener('mousedown', e => e.preventDefault());
+  });
+  $('#btnBold').addEventListener('click', () => exec('bold'));
+  $('#btnItalic').addEventListener('click', () => exec('italic'));
+  $('#btnStrike').addEventListener('click', () => exec('strikeThrough'));
 
-    function fitCanvasToScreen() {
-        const wrapper = document.getElementById('canvasWrapper');
-        const scaler = document.getElementById('canvasScaler');
-        const canvas = document.getElementById('captureCanvas');
-        const viewer = document.querySelector('.viewer-area');
-        
-        if (!wrapper || !scaler || !canvas || !viewer) return;
+  // ---- 글자색 / 형광펜 + 히스토리 (localStorage 보존) ----
+  const forePicker = $('#foreColor'), hilitePicker = $('#hiliteColor');
+  const foreHistEl = $('#foreHist'), hiliteHistEl = $('#hiliteHist');
+  const LS_KEY = 'jimun-extractor:color-history';
 
-        const availableWidth = viewer.clientWidth - 40; 
-        
-        if (availableWidth < 600) {
-            const scale = availableWidth / 600;
-            // 스케일을 캡처용 캔버스가 아닌, 보호용 껍데기(scaler)에 적용합니다.
-            scaler.style.transform = `scale(${scale})`;
-            wrapper.style.height = `${canvas.offsetHeight * scale}px`;
-        } else {
-            scaler.style.transform = 'none';
-            wrapper.style.height = 'auto';
-        }
+  // 저장소가 막힌 환경(미리보기·시크릿 모드 등)에서도 앱이 죽지 않게 감싼다
+  function loadHist(){
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      const clean = a => Array.isArray(a)
+        ? a.filter(c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)).slice(0, 8)
+        : [];
+      return { fore: clean(d.fore), hilite: clean(d.hilite) };
+    } catch(e){ return null; }
+  }
+  function saveHist(){
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ fore: foreHist, hilite: hiliteHist })); }
+    catch(e){ /* 저장 불가 환경: 이번 세션 동안만 유지 */ }
+  }
+
+  const loaded = loadHist();
+  let foreHist   = loaded ? loaded.fore   : [];
+  let hiliteHist = loaded ? loaded.hilite : [];
+
+  function pushColor(arr, c){
+    c = c.toLowerCase();
+    const i = arr.indexOf(c); if (i >= 0) arr.splice(i, 1);
+    arr.unshift(c); if (arr.length > 8) arr.length = 8;
+  }
+  function renderSwatches(arr, host, picker, applyFn){
+    host.innerHTML = '';
+    arr.forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'swatch'; b.type = 'button';
+      b.style.background = c; b.title = c;
+      b.addEventListener('mousedown', e => e.preventDefault());
+      b.addEventListener('click', () => { picker.value = c; applyFn(c); });
+      host.appendChild(b);
+    });
+    if (arr.length){
+      const clr = document.createElement('button');
+      clr.className = 'swatch-clear'; clr.type = 'button';
+      clr.textContent = '비우기'; clr.title = '저장된 색 모두 지우기';
+      clr.addEventListener('mousedown', e => e.preventDefault());
+      clr.addEventListener('click', () => {
+        arr.length = 0; renderSwatches(arr, host, picker, applyFn); saveHist();
+      });
+      host.appendChild(clr);
     }
+  }
+  function applyFore(c){
+    exec('foreColor', c);
+    pushColor(foreHist, c);
+    renderSwatches(foreHist, foreHistEl, forePicker, applyFore);
+    saveHist();
+  }
+  function applyHilite(c){
+    exec('hiliteColor', c);
+    pushColor(hiliteHist, c);
+    renderSwatches(hiliteHist, hiliteHistEl, hilitePicker, applyHilite);
+    saveHist();
+  }
+  $('#btnFore').addEventListener('click', () => applyFore(forePicker.value));
+  $('#btnHilite').addEventListener('click', () => applyHilite(hilitePicker.value));
+  $('#btnHiliteClear').addEventListener('click', () => exec('hiliteColor', 'transparent'));
 
-    window.addEventListener('resize', fitCanvasToScreen);
+  // 저장된 히스토리를 시작 시 화면에 복원
+  renderSwatches(foreHist, foreHistEl, forePicker, applyFore);
+  renderSwatches(hiliteHist, hiliteHistEl, hilitePicker, applyHilite);
 
-    window.addEventListener('DOMContentLoaded', () => {
-        const observer = new MutationObserver(fitCanvasToScreen);
-        observer.observe(document.getElementById('captureCanvas'), { childList: true, subtree: true, characterData: true });
-        fitCanvasToScreen();
+  // ============================================================
+  // 공용 드래그 (마우스 + 터치)
+  // ============================================================
+  function startDrag(e, onMove, onEnd){
+    e.preventDefault(); e.stopPropagation();
+    const target = e.currentTarget, id = e.pointerId;
+    const sx = e.clientX, sy = e.clientY;
+    try { target.setPointerCapture(id); } catch(err){}
+    function move(ev){ onMove((ev.clientX - sx) / scale, (ev.clientY - sy) / scale, ev); }
+    function up(){
+      try { target.releasePointerCapture(id); } catch(err){}
+      target.removeEventListener('pointermove', move);
+      target.removeEventListener('pointerup', up);
+      target.removeEventListener('pointercancel', up);
+      if (onEnd) onEnd();
+    }
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+    target.addEventListener('pointercancel', up);
+  }
+  function centerScreen(el){
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+  }
+  function bringFront(el, obj){
+    zCounter++; obj.z = zCounter;
+    if (!(obj.isImg && imagesBelow)) el.style.zIndex = zCounter;
+  }
+  function selectOnly(el){
+    document.querySelectorAll('.sticker.sel').forEach(s => { if (s !== el) s.classList.remove('sel'); });
+    el.classList.add('sel');
+  }
+
+  // ============================================================
+  // 이미지 스티커
+  // ============================================================
+  function addImageSticker(src){
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.naturalWidth / img.naturalHeight;
+      let w = 220, h = w / ratio;
+      if (h > 260){ h = 260; w = h * ratio; }
+      const obj = { isImg:true, left:(600-w)/2, top:120, width:w, height:h, rot:0, opacity:1, ratio:ratio, z:20 };
+      const el = document.createElement('div');
+      el.className = 'sticker img-sticker';
+      el.innerHTML =
+        '<img alt="" draggable="false">' +
+        '<span class="handle tl"></span><span class="handle tr"></span>' +
+        '<span class="handle bl"></span><span class="handle br"></span>' +
+        '<span class="rotate-handle"></span>' +
+        '<button class="del-btn" type="button">✕</button>' +
+        '<div class="op-wrap"><input type="range" min="10" max="100" value="100"><span>100%</span></div>';
+      const imgEl = el.querySelector('img');
+      imgEl.src = src; el._obj = obj;
+      canvas.appendChild(el);
+      renderImg(el);
+
+      imgEl.addEventListener('pointerdown', e => {
+        if (imagesBelow) return;
+        selectOnly(el); bringFront(el, obj);
+        const sl = obj.left, st = obj.top;
+        startDrag(e, (dx,dy) => { obj.left = sl+dx; obj.top = st+dy; renderImg(el); });
+      });
+      el.querySelectorAll('.handle').forEach(hd => {
+        hd.addEventListener('pointerdown', e => {
+          if (imagesBelow) return;
+          selectOnly(el); bringFront(el, obj);
+          const c = centerScreen(el);
+          const cxCanvas = obj.left + obj.width/2, cyCanvas = obj.top + obj.height/2;
+          const startDist = Math.hypot(e.clientX-c.x, e.clientY-c.y) || 1;
+          const sw = obj.width;
+          startDrag(e, (dx,dy,ev) => {
+            const d = Math.hypot(ev.clientX-c.x, ev.clientY-c.y);
+            let nw = Math.max(30, Math.min(1400, sw * (d/startDist)));
+            obj.width = nw; obj.height = nw / obj.ratio;
+            obj.left = cxCanvas - obj.width/2; obj.top = cyCanvas - obj.height/2;
+            renderImg(el);
+          });
+        });
+      });
+      el.querySelector('.rotate-handle').addEventListener('pointerdown', e => {
+        if (imagesBelow) return;
+        selectOnly(el); bringFront(el, obj);
+        const c = centerScreen(el);
+        const startAng = Math.atan2(e.clientY-c.y, e.clientX-c.x) * 180/Math.PI;
+        const sr = obj.rot;
+        startDrag(e, (dx,dy,ev) => {
+          const a = Math.atan2(ev.clientY-c.y, ev.clientX-c.x) * 180/Math.PI;
+          obj.rot = sr + (a - startAng); renderImg(el);
+        });
+      });
+      const opRange = el.querySelector('.op-wrap input');
+      const opSpan  = el.querySelector('.op-wrap span');
+      opRange.addEventListener('input', () => {
+        obj.opacity = opRange.value/100; opSpan.textContent = opRange.value + '%';
+        imgEl.style.opacity = obj.opacity;
+      });
+      el.querySelector('.del-btn').addEventListener('click', () => el.remove());
+
+      applyLayerState(el);
+      setImagesBelow(false);
+      selectOnly(el);
+    };
+    img.src = src;
+  }
+  function renderImg(el){
+    const o = el._obj;
+    el.style.left = o.left+'px'; el.style.top = o.top+'px';
+    el.style.width = o.width+'px'; el.style.height = o.height+'px';
+    el.style.transform = 'rotate('+o.rot+'deg)';
+    el.querySelector('img').style.opacity = o.opacity;
+  }
+  function applyLayerState(el){
+    const o = el._obj;
+    if (imagesBelow){ el.classList.add('below'); el.style.zIndex = 3; }
+    else { el.classList.remove('below'); el.style.zIndex = o.z || 20; }
+  }
+  function setImagesBelow(v){
+    imagesBelow = v;
+    document.querySelectorAll('.img-sticker').forEach(applyLayerState);
+    updateLayerBtn();
+  }
+  function updateLayerBtn(){
+    $('#btnToggleLayer').textContent = imagesBelow
+      ? '텍스트 위로 올리기 (편집하려면 클릭)'
+      : '텍스트 아래로 내리기';
+  }
+  $('#btnToggleLayer').addEventListener('click', () => setImagesBelow(!imagesBelow));
+  $('#imgUpload').addEventListener('change', e => readFile(e.target, addImageSticker));
+
+  // ============================================================
+  // 텍스트 스티커
+  // ============================================================
+  function addTextSticker(){
+    const obj = { left:200, top:160, width:220, rot:0, font:24, bg:0, z:20 };
+    const el = document.createElement('div');
+    el.className = 'sticker text-sticker'; el.dataset.bg = '0';
+    el.innerHTML =
+      '<div class="ts-text" contenteditable="true">텍스트를 입력하세요</div>' +
+      '<span class="move-grip">✥</span>' +
+      '<span class="handle br"></span>' +
+      '<span class="handle side"></span>' +
+      '<span class="rotate-handle"></span>' +
+      '<button class="style-btn" type="button">A</button>' +
+      '<button class="del-btn" type="button">✕</button>';
+    el._obj = obj;
+    canvas.appendChild(el);
+    renderText(el);
+
+    const textEl = el.querySelector('.ts-text');
+    textEl.addEventListener('pointerdown', () => { selectOnly(el); bringFront(el, obj); });
+
+    el.querySelector('.move-grip').addEventListener('pointerdown', e => {
+      selectOnly(el); bringFront(el, obj);
+      const sl = obj.left, st = obj.top;
+      startDrag(e, (dx,dy) => { obj.left = sl+dx; obj.top = st+dy; renderText(el); });
+    });
+    el.querySelector('.handle.br').addEventListener('pointerdown', e => {
+      selectOnly(el); bringFront(el, obj);
+      const c = centerScreen(el);
+      const startDist = Math.hypot(e.clientX-c.x, e.clientY-c.y) || 1;
+      const sf = obj.font, swd = obj.width;
+      startDrag(e, (dx,dy,ev) => {
+        const d = Math.hypot(ev.clientX-c.x, ev.clientY-c.y);
+        const s = Math.max(0.2, d/startDist);
+        obj.font = Math.max(10, Math.min(160, sf*s));
+        obj.width = Math.max(40, swd*s);
+        renderText(el);
+      });
+    });
+    el.querySelector('.handle.side').addEventListener('pointerdown', e => {
+      selectOnly(el); bringFront(el, obj);
+      const sw = obj.width;
+      const rad = obj.rot * Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
+      startDrag(e, (dx,dy) => {
+        const localDx = dx*cos + dy*sin;
+        obj.width = Math.max(40, sw + localDx); renderText(el);
+      });
+    });
+    el.querySelector('.rotate-handle').addEventListener('pointerdown', e => {
+      selectOnly(el); bringFront(el, obj);
+      const c = centerScreen(el);
+      const startAng = Math.atan2(e.clientY-c.y, e.clientX-c.x) * 180/Math.PI;
+      const sr = obj.rot;
+      startDrag(e, (dx,dy,ev) => {
+        const a = Math.atan2(ev.clientY-c.y, ev.clientX-c.x) * 180/Math.PI;
+        obj.rot = sr + (a - startAng); renderText(el);
+      });
+    });
+    el.querySelector('.style-btn').addEventListener('click', () => {
+      obj.bg = (obj.bg + 1) % 3; el.dataset.bg = String(obj.bg);
+    });
+    el.querySelector('.del-btn').addEventListener('click', () => el.remove());
+
+    selectOnly(el);
+    setTimeout(() => { textEl.focus(); document.execCommand('selectAll', false, null); }, 0);
+  }
+  function renderText(el){
+    const o = el._obj;
+    el.style.left = o.left+'px'; el.style.top = o.top+'px';
+    el.style.width = o.width+'px'; el.style.transform = 'rotate('+o.rot+'deg)';
+    el.querySelector('.ts-text').style.fontSize = o.font+'px';
+  }
+  $('#btnAddText').addEventListener('click', addTextSticker);
+
+  // ============================================================
+  // 캐릭터 속마음
+  // ============================================================
+  const thoughts = {
+    1:{ shown:false, type:'popup', profile:null, bg:'#2b2d33', bgop:88, color:'#ffffff',
+        def:'여기에 캐릭터 1의 속마음을 적어보세요' },
+    2:{ shown:false, type:'popup', profile:null, bg:'#7d9cb5', bgop:92, color:'#ffffff',
+        def:'여기에 캐릭터 2의 속마음을 적어보세요' }
+  };
+  function renderThought(n){
+    const t = thoughts[n];
+    const el = $('#thought'+n);
+    el.style.display = t.shown ? '' : 'none';
+    el.className = 'thought ' + t.type;
+    el.dataset.char = String(n);
+    const rgba = hexToRgba(t.bg, t.bgop/100);
+    const main = el.querySelector('.th-main');
+    if (t.type === 'popup'){
+      el.style.background = rgba; el.style.color = t.color;
+      main.style.background = 'transparent'; main.style.color = '';
+    } else {
+      el.style.background = 'transparent'; el.style.color = '';
+      main.style.background = rgba; main.style.color = t.color;
+    }
+    const img = $('#th'+n+'-img');
+    img.style.backgroundImage = t.profile ? 'url(' + t.profile + ')' : 'none';
+  }
+  function setThoughtText(n, txt){ $('#th'+n+'-text').textContent = txt; }
+
+  [1,2].forEach(n => {
+    setThoughtText(n, thoughts[n].def);
+    $('#th'+n+'-show').addEventListener('change', e => { thoughts[n].shown = e.target.checked; renderThought(n); });
+    document.querySelector('.seg[data-th="'+n+'"]').addEventListener('click', e => {
+      const b = e.target.closest('button[data-type]'); if (!b) return;
+      thoughts[n].type = b.dataset.type;
+      document.querySelectorAll('.seg[data-th="'+n+'"] .btn').forEach(x => x.classList.toggle('active', x === b));
+      renderThought(n); // 텍스트 내용 유지
+    });
+    $('#th'+n+'-profile').addEventListener('change', e => readFile(e.target, d => { thoughts[n].profile = d; renderThought(n); }));
+    $('#th'+n+'-bg').addEventListener('input', e => { thoughts[n].bg = e.target.value; renderThought(n); });
+    const op = $('#th'+n+'-bgop'), opv = $('#th'+n+'-bgop-v');
+    op.addEventListener('input', () => { thoughts[n].bgop = +op.value; opv.textContent = op.value+'%'; renderThought(n); });
+    $('#th'+n+'-color').addEventListener('input', e => { thoughts[n].color = e.target.value; renderThought(n); });
+    renderThought(n);
+  });
+
+  // ============================================================
+  // 배경
+  // ============================================================
+  const bg = { mode:'solid', color:'#ffffff', gradS:'#a8c5d6', gradE:'#dbe6ec', image:null, bright:0 };
+  function renderBg(){
+    if (bg.mode === 'solid')         bgLayer.style.background = bg.color;
+    else if (bg.mode === 'gradient') bgLayer.style.background = 'linear-gradient(180deg,'+bg.gradS+','+bg.gradE+')';
+    else if (bg.mode === 'image')    bgLayer.style.background = 'url('+bg.image+') center/cover no-repeat';
+    const v = bg.bright;
+    if (v < 0)      overlay.style.background = 'rgba(0,0,0,'   + Math.min(0.85, -v/100) + ')';
+    else if (v > 0) overlay.style.background = 'rgba(255,255,255,' + Math.min(0.85, v/100) + ')';
+    else            overlay.style.background = 'transparent';
+  }
+  function setDefaultTextColor(c){ defaultTextColor = c; bodyText.style.color = c; }
+
+  $('#bgWhite').addEventListener('click', () => { bg.mode='solid'; bg.color='#ffffff'; setDefaultTextColor('#222222'); renderBg(); });
+  $('#bgDark').addEventListener('click',  () => { bg.mode='solid'; bg.color='#1e1f26'; setDefaultTextColor('#ffffff'); renderBg(); });
+  $('#btnGrad').addEventListener('click', () => { bg.mode='gradient'; bg.gradS=$('#gradStart').value; bg.gradE=$('#gradEnd').value; renderBg(); });
+  $('#btnBgColor').addEventListener('click', () => { bg.mode='solid'; bg.color=$('#bgColor').value; renderBg(); });
+  $('#bgImage').addEventListener('change', e => readFile(e.target, d => { bg.mode='image'; bg.image=d; renderBg(); }));
+  const br = $('#brightness'), brv = $('#brightnessVal');
+  br.addEventListener('input', () => { bg.bright = +br.value; brv.textContent = br.value; renderBg(); });
+
+  // ============================================================
+  // 접이식 섹션
+  // ============================================================
+  document.querySelectorAll('.collapse .head[data-toggle]').forEach(h => {
+    h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+  });
+
+  // ============================================================
+  // 네이티브 드래그 차단
+  // ============================================================
+  ['dragstart','dragover','drop'].forEach(ev => canvas.addEventListener(ev, e => e.preventDefault()));
+  canvas.addEventListener('pointerdown', e => {
+    if (e.target === canvas || e.target === bodyText || e.target === bgLayer)
+      document.querySelectorAll('.sticker.sel').forEach(s => s.classList.remove('sel'));
+  });
+
+  // ============================================================
+  // 전체 초기화
+  // ============================================================
+  $('#btnReset').addEventListener('click', () => {
+    if (!confirm('모든 내용을 처음 상태로 되돌릴까요? 되돌릴 수 없습니다.')) return;
+    bodyText.innerHTML = '';
+    bodyText.style.fontFamily = FONTS.pretendard;
+    bodyText.style.fontSize = '18px';
+    $('#fontFamily').value = 'pretendard';
+    fsSlider.value = 18; fsVal.textContent = '18px';
+    forePicker.value = '#74a5c2'; hilitePicker.value = '#ffe27a';
+    // 색상 히스토리는 문서 내용이 아니라 저장된 팔레트이므로 초기화에서 유지한다
+    updateEmpty();
+
+    document.querySelectorAll('.sticker').forEach(s => s.remove());
+    setImagesBelow(true);
+
+    [1,2].forEach(n => {
+      const t = thoughts[n];
+      t.shown=false; t.type='popup'; t.profile=null;
+      t.bg = n===1 ? '#2b2d33' : '#7d9cb5';
+      t.bgop = n===1 ? 88 : 92; t.color='#ffffff';
+      $('#th'+n+'-show').checked=false;
+      $('#th'+n+'-bg').value=t.bg;
+      $('#th'+n+'-bgop').value=t.bgop; $('#th'+n+'-bgop-v').textContent=t.bgop+'%';
+      $('#th'+n+'-color').value='#ffffff';
+      document.querySelectorAll('.seg[data-th="'+n+'"] .btn').forEach(x => x.classList.toggle('active', x.dataset.type==='popup'));
+      setThoughtText(n, t.def);
+      renderThought(n);
     });
 
-    function updateCanvasFontFamily(fontFamily) { document.getElementById('editableContent').style.fontFamily = fontFamily; }
-    function updateCanvasFontSize(size) {
-        document.getElementById('fontSizeVal').innerText = size;
-        document.getElementById('editableContent').style.fontSize = size + 'px';
-        fitCanvasToScreen();
-    }
-    function formatText(command) {
-        document.execCommand(command, false, null);
-        document.getElementById('editableContent').focus();
-    }
-    function applyCurrentTextColor() {
-        const color = document.getElementById('textColorPicker').value;
-        document.execCommand('foreColor', false, color);
-        document.getElementById('editableContent').focus();
-    }
-    function applyCurrentHighlightColor() {
-        const color = document.getElementById('highlightColorPicker').value;
-        document.execCommand('hiliteColor', false, color);
-        document.execCommand('backColor', false, color);
-        document.getElementById('editableContent').focus();
-    }
-    function removeHighlight() {
-        document.execCommand('hiliteColor', false, 'transparent');
-        document.execCommand('backColor', false, 'transparent');
-        document.getElementById('editableContent').focus();
-    }
+    bg.mode='solid'; bg.color='#ffffff'; bg.image=null; bg.bright=0;
+    bg.gradS='#a8c5d6'; bg.gradE='#dbe6ec';
+    $('#bgColor').value='#ffffff'; $('#gradStart').value='#a8c5d6'; $('#gradEnd').value='#dbe6ec';
+    br.value=0; brv.textContent='0';
+    setDefaultTextColor('#222222');
+    renderBg();
+    relayout();
+  });
 
-    function setBgStyle(styleValue) {
-        document.getElementById('bgLayer').style.background = styleValue;
-        document.getElementById('bgImageInput').value = '';
-    }
-    function updateCustomGradient() {
-        const start = document.getElementById('gradStart').value;
-        const end = document.getElementById('gradEnd').value;
-        setBgStyle(`linear-gradient(135deg, ${start} 0%, ${end} 100%)`);
-    }
-    function setBgImage(event) {
-        const file = event.target.files[0];
-        if(file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const bgLayer = document.getElementById('bgLayer');
-                bgLayer.style.background = `url('${e.target.result}')`;
-                bgLayer.style.backgroundSize = 'cover';
-                bgLayer.style.backgroundPosition = 'center';
-            };
-            reader.readAsDataURL(file);
-        }
-    }
-    function updateBgBrightness(val) {
-        const overlay = document.getElementById('overlayLayer');
-        const value = parseInt(val);
-        if (value < 0) overlay.style.backgroundColor = `rgba(0, 0, 0, ${Math.abs(value) / 100})`;
-        else if (value > 0) overlay.style.backgroundColor = `rgba(255, 255, 255, ${value / 100})`;
-        else overlay.style.backgroundColor = `rgba(0, 0, 0, 0)`;
+  // ============================================================
+  // PNG 저장 (캡처 안정화)
+  // ============================================================
+  function nextFrames(n){
+    return new Promise(res => { (function step(k){ if (k<=0) return res(); requestAnimationFrame(()=>step(k-1)); })(n); });
+  }
+  async function saveImage(){
+    const sel = window.getSelection(); if (sel) sel.removeAllRanges();
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    document.querySelectorAll('.sticker.sel').forEach(s => s.classList.remove('sel'));
+
+    canvas.classList.add('capturing');
+    const prevTransform = canvas.style.transform;
+    canvas.style.transform = 'none';
+
+    const btn = $('#btnSave'); const label = btn.textContent;
+    btn.textContent = '저장 준비 중…'; btn.disabled = true;
+
+    try { await document.fonts.ready; } catch(e){}
+    await nextFrames(4);
+
+    const w = 600;
+    const h = Math.ceil(canvas.offsetHeight);
+    let dataUrl = null;
+    try {
+      dataUrl = await window.htmlToImage.toPng(canvas, {
+        width: w, height: h,
+        canvasWidth: w*2, canvasHeight: h*2,
+        backgroundColor: null,
+        style: { transform:'none', margin:'0', left:'0', top:'0' }
+      });
+    } catch(err){
+      alert('이미지 저장 중 문제가 발생했어요.\n다시 시도해 주세요.\n(' + err + ')');
     }
 
-    function getEventPos(e) {
-        if (e.touches && e.touches.length > 0) {
-            return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        }
-        return { x: e.clientX, y: e.clientY };
+    canvas.style.transform = prevTransform;
+    canvas.classList.remove('capturing');
+    btn.textContent = label; btn.disabled = false;
+    relayout();
+
+    if (dataUrl){
+      const a = document.createElement('a');
+      a.href = dataUrl; a.download = '지문발췌_' + Date.now() + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
     }
+  }
+  $('#btnSave').addEventListener('click', saveImage);
 
-    function addAdvancedSticker() {
-        const canvas = document.getElementById('captureCanvas');
-        const sticker = document.createElement('div');
-        sticker.className = 'sticker';
-        sticker.style.left = '100px';
-        sticker.style.top = '100px';
-        sticker.style.width = '200px';
-        sticker.style.height = 'auto';
-        
-        const state = { transform: { x: 0, y: 0, rotation: 0 }, width: 200 };
-
-        const styleBtn = document.createElement('div');
-        styleBtn.className = 'sticker-style-btn';
-        styleBtn.innerText = 'A';
-        let bgStyleMode = 0; 
-
-        const closeBtn = document.createElement('div');
-        closeBtn.className = 'sticker-close';
-        closeBtn.innerText = '✕';
-        closeBtn.addEventListener('click', () => sticker.remove());
-        closeBtn.addEventListener('touchend', (e) => { e.preventDefault(); sticker.remove(); });
-
-        const moveOverlay = document.createElement('div');
-        moveOverlay.className = 'sticker-move-overlay';
-
-        const resizeHandle = document.createElement('div');
-        resizeHandle.className = 'sticker-resize-handle';
-
-        const widthHandle = document.createElement('div');
-        widthHandle.className = 'sticker-width-handle';
-
-        const rotateLine = document.createElement('div');
-        rotateLine.className = 'sticker-rotate-line';
-        const rotateHandle = document.createElement('div');
-        rotateHandle.className = 'sticker-rotate-handle';
-
-        const text = document.createElement('div');
-        text.className = 'sticker-text';
-        text.contentEditable = true;
-        text.innerText = '여기에 내용을 입력하세요';
-        text.style.color = document.getElementById('textColorPicker').value;
-        text.style.fontSize = document.getElementById('fontSizeVal').innerText + 'px';
-
-        const toggleStyle = (e) => {
-            if(e && e.type.includes('touch')) e.preventDefault();
-            bgStyleMode = (bgStyleMode + 1) % 3;
-            if (bgStyleMode === 0) {
-                text.style.backgroundColor = 'transparent';
-                text.style.color = document.getElementById('textColorPicker').value;
-            } else if (bgStyleMode === 1) {
-                text.style.backgroundColor = 'rgba(255, 255, 255, 0.85)';
-                text.style.color = '#1e293b';
-            } else if (bgStyleMode === 2) {
-                text.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
-                text.style.color = '#ffffff';
-            }
-        };
-        styleBtn.addEventListener('click', toggleStyle);
-        styleBtn.addEventListener('touchend', toggleStyle);
-
-        sticker.appendChild(styleBtn);
-        sticker.appendChild(closeBtn);
-        sticker.appendChild(moveOverlay);
-        sticker.appendChild(resizeHandle);
-        sticker.appendChild(widthHandle);
-        sticker.appendChild(rotateLine);
-        sticker.appendChild(rotateHandle);
-        sticker.appendChild(text);
-        canvas.appendChild(sticker);
-
-        function applyTransform() {
-            sticker.style.transform = `translate(${state.transform.x}px, ${state.transform.y}px) rotate(${state.transform.rotation}deg)`;
-        }
-        
-        let isMoving = false, moveStartX, moveStartY;
-        const startMove = (e) => {
-            isMoving = true;
-            const pos = getEventPos(e);
-            moveStartX = pos.x - state.transform.x;
-            moveStartY = pos.y - state.transform.y;
-            if(e.type.includes('touch')) e.preventDefault(); 
-        };
-        moveOverlay.addEventListener('mousedown', startMove);
-        moveOverlay.addEventListener('touchstart', startMove, {passive: false});
-
-        let isResizing = false, resizeStartX, startWidth, startFontSize;
-        const startResize = (e) => {
-            isResizing = true;
-            const pos = getEventPos(e);
-            resizeStartX = pos.x;
-            startWidth = state.width;
-            startFontSize = parseFloat(window.getComputedStyle(text).fontSize);
-            if(e.type.includes('touch')) e.preventDefault();
-        };
-        resizeHandle.addEventListener('mousedown', startResize);
-        resizeHandle.addEventListener('touchstart', startResize, {passive: false});
-
-        let isWidthResizing = false, widthResizeStartX, startWidthOnly;
-        const startWidthResize = (e) => {
-            isWidthResizing = true;
-            const pos = getEventPos(e);
-            widthResizeStartX = pos.x;
-            startWidthOnly = state.width;
-            if(e.type.includes('touch')) e.preventDefault();
-        };
-        widthHandle.addEventListener('mousedown', startWidthResize);
-        widthHandle.addEventListener('touchstart', startWidthResize, {passive: false});
-
-        let isRotating = false;
-        const startRotate = (e) => {
-            isRotating = true;
-            if(e.type.includes('touch')) e.preventDefault();
-        };
-        rotateHandle.addEventListener('mousedown', startRotate);
-        rotateHandle.addEventListener('touchstart', startRotate, {passive: false});
-
-        const onMove = (e) => {
-            if (!isMoving && !isResizing && !isWidthResizing && !isRotating) return;
-            
-            // 안전한 드래그를 위해 보호용 껍데기(scaler)의 현재 축소 비율을 정확히 계산해 가져옵니다.
-            let currentScale = 1;
-            const scaler = document.getElementById('canvasScaler');
-            if (scaler && scaler.style.transform && scaler.style.transform.includes('scale')) {
-                const match = scaler.style.transform.match(/scale\(([^)]+)\)/);
-                if (match) currentScale = parseFloat(match[1]);
-            }
-            
-            const pos = getEventPos(e);
-            let actionOccurred = false;
-
-            if (isMoving) {
-                state.transform.x = (pos.x - moveStartX);
-                state.transform.y = (pos.y - moveStartY);
-                applyTransform();
-                actionOccurred = true;
-            } else if (isResizing) {
-                const dx = (pos.x - resizeStartX) / currentScale;
-                const ratio = Math.max(0.3, (startWidth + dx) / startWidth);
-                state.width = startWidth * ratio;
-                sticker.style.width = state.width + 'px';
-                text.style.fontSize = (startFontSize * ratio) + 'px';
-                actionOccurred = true;
-            } else if (isWidthResizing) {
-                const dx = (pos.x - widthResizeStartX) / currentScale;
-                state.width = Math.max(80, startWidthOnly + dx);
-                sticker.style.width = state.width + 'px';
-                actionOccurred = true;
-            } else if (isRotating) {
-                const rect = sticker.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-                const angle = Math.atan2(pos.y - centerY, pos.x - centerX);
-                state.transform.rotation = angle * (180 / Math.PI) - 90;
-                applyTransform();
-                actionOccurred = true;
-            }
-
-            if(actionOccurred && e.type.includes('touch')) {
-                e.preventDefault();
-            }
-        };
-
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('touchmove', onMove, {passive: false});
-
-        const onEnd = () => { 
-            isMoving = false; isResizing = false; isWidthResizing = false; isRotating = false; 
-        };
-        document.addEventListener('mouseup', onEnd);
-        document.addEventListener('touchend', onEnd);
-    }
-
-    function resetCanvas() {
-        if(!confirm("작성 중인 내용과 추가한 스티커가 모두 지워집니다. 새로 작성하시겠습니까?")) return;
-        
-        document.getElementById('editableContent').innerHTML = '';
-        document.querySelectorAll('.sticker').forEach(el => el.remove());
-        
-        const popup1 = document.getElementById('notifPopup1').querySelector('.notif-text');
-        const bubble1 = document.getElementById('notifBubble1').querySelector('.notif-text');
-        popup1.innerHTML = '속마음을 입력하세요...';
-        bubble1.innerHTML = '속마음을 입력하세요...';
-
-        const popup2 = document.getElementById('notifPopup2').querySelector('.notif-text');
-        const bubble2 = document.getElementById('notifBubble2').querySelector('.notif-text');
-        popup2.innerHTML = '두 번째 속마음을 입력하세요...';
-        bubble2.innerHTML = '두 번째 속마음을 입력하세요...';
-
-        fitCanvasToScreen(); 
-    }
-
-    function toggleNotif(num, show) {
-        document.getElementById('notifControls' + num).style.display = show ? 'flex' : 'none';
-        document.getElementById('notifWrapper' + num).style.display = show ? 'flex' : 'none';
-        
-        if (show) updateNotifStyle(num);
-
-        const show1 = document.getElementById('notifToggle1').checked;
-        const show2 = document.getElementById('notifToggle2').checked;
-        document.getElementById('notifContainer').style.display = (show1 || show2) ? 'flex' : 'none';
-
-        fitCanvasToScreen(); 
-    }
-
-    function changeNotifStyle(num, style) {
-        const popup = document.getElementById('notifPopup' + num);
-        const bubble = document.getElementById('notifBubble' + num);
-        const popupText = popup.querySelector('.notif-text');
-        const bubbleText = bubble.querySelector('.notif-text');
-
-        if (popup.style.display !== 'none' && style === 'bubble') {
-            bubbleText.innerHTML = popupText.innerHTML;
-        } else if (bubble.style.display !== 'none' && style === 'popup') {
-            popupText.innerHTML = bubbleText.innerHTML;
-        }
-
-        popup.style.display = style === 'popup' ? 'flex' : 'none';
-        bubble.style.display = style === 'bubble' ? 'flex' : 'none';
-        fitCanvasToScreen();
-    }
-
-    function hexToRgba(hex, opacity) {
-        let r = parseInt(hex.slice(1, 3), 16);
-        let g = parseInt(hex.slice(3, 5), 16);
-        let b = parseInt(hex.slice(5, 7), 16);
-        return `rgba(${r}, ${g}, ${b}, ${opacity / 100})`;
-    }
-
-    function updateNotifStyle(num) {
-        const bgColorHex = document.getElementById('notifBgColor' + num).value;
-        const opacity = document.getElementById('notifOpacity' + num).value;
-        const textColor = document.getElementById('notifTextColor' + num).value;
-        const rgba = hexToRgba(bgColorHex, opacity);
-        
-        const popup = document.getElementById('notifPopup' + num);
-        popup.style.backgroundColor = rgba;
-        popup.querySelector('.notif-text').style.color = textColor;
-        
-        const bubbleText = document.getElementById('notifBubble' + num).querySelector('.notif-text');
-        bubbleText.style.backgroundColor = rgba;
-        bubbleText.style.color = textColor;
-    }
-
-    function setNotifProfile(num, event) {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const url = `url('${e.target.result}')`;
-                document.querySelectorAll('.notif-profile-img' + num).forEach(el => {
-                    el.style.backgroundImage = url;
-                });
-            };
-            reader.readAsDataURL(file);
-        }
-    }
-
-    function captureCanvas() {
-        if (document.activeElement) document.activeElement.blur();
-        
-        // 캡처 대상은 순수한 1x 크기를 유지하고 있는 captureCanvas 입니다.
-        const canvasContainer = document.getElementById('captureCanvas');
-        canvasContainer.classList.add('is-capturing');
-        
-        // 화면을 강제로 늘리거나 줄이는 로직(transform = 'none')이 완전히 삭제되었습니다.
-        // 덕분에 브라우저가 다시 렌더링하느라 깜빡일 일도 없고, 화질 저하나 줄바꿈 오차도 생기지 않습니다.
-        
-        setTimeout(() => {
-            htmlToImage.toPng(canvasContainer, { 
-                pixelRatio: 2,
-                width: 600,
-                height: canvasContainer.offsetHeight,
-                style: { margin: 0 }
-            })
-            .then(function (dataUrl) {
-                const link = document.createElement('a');
-                link.download = 'dialogue_' + new Date().getTime() + '.png';
-                link.href = dataUrl;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                canvasContainer.classList.remove('is-capturing');
-            })
-            .catch(function (error) {
-                alert("이미지 저장 실패: " + error);
-                canvasContainer.classList.remove('is-capturing');
-            });
-        }, 50); // DOM이 is-capturing 클래스를 반영할 최소한의 시간(50ms)만 대기합니다.
-    }
+  // ============================================================
+  // 초기 실행
+  // ============================================================
+  bodyText.style.fontFamily = FONTS.pretendard;
+  bodyText.style.fontSize = '18px';
+  setDefaultTextColor('#222222');
+  renderBg();
+  updateLayerBtn();
+  updateEmpty();
+  relayout();
+  window.addEventListener('load', relayout);
+})();
 </script>
-
 </body>
 </html>
