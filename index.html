@@ -1089,6 +1089,29 @@
   function nextFrames(n){
     return new Promise(res => { (function step(k){ if (k<=0) return res(); requestAnimationFrame(()=>step(k-1)); })(n); });
   }
+
+  // 캡처본에서 웹폰트가 대체 글꼴로 떨어지면 글자 폭이 달라져 본문이 "다시 흐르고",
+  // 절대 위치인 스티커가 글자 위로 겹친다. 그래서 (1) 실제 쓰는 굵기까지 강제 로드하고
+  // (2) 폰트를 CSS로 뽑아 캡처본에 직접 심어 준다.
+  async function ensureFontsLoaded(){
+    const specs = [
+      '400 18px Pretendard', '600 18px Pretendard', '700 18px Pretendard',
+      '400 18px "Nanum Myeongjo"', '700 18px "Nanum Myeongjo"'
+    ];
+    await Promise.all(specs.map(s => {
+      try { return document.fonts.load(s, '가힣ABC123'); } catch(e){ return null; }
+    }));
+    try { await document.fonts.ready; } catch(e){}
+  }
+
+  let fontEmbedCache = null;
+  async function getFontCSS(){
+    if (fontEmbedCache !== null) return fontEmbedCache;
+    try { fontEmbedCache = await window.htmlToImage.getFontEmbedCSS(canvas); }
+    catch(e){ fontEmbedCache = ''; }   // 실패해도 저장 자체는 계속 진행
+    return fontEmbedCache;
+  }
+
   async function saveImage(){
     const sel = window.getSelection(); if (sel) sel.removeAllRanges();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -1101,17 +1124,19 @@
     const btn = $('#btnSave'); const label = btn.textContent;
     btn.textContent = '저장 준비 중…'; btn.disabled = true;
 
-    try { await document.fonts.ready; } catch(e){}
+    await ensureFontsLoaded();
+    const fontEmbedCSS = await getFontCSS();
     await nextFrames(4);
 
     const w = 600;
-    const h = Math.ceil(canvas.offsetHeight);
+    const h = Math.ceil(canvas.offsetHeight);   // 폰트 확정 후 높이 재측정
     let dataUrl = null;
     try {
       dataUrl = await window.htmlToImage.toPng(canvas, {
         width: w, height: h,
         canvasWidth: w*2, canvasHeight: h*2,
         backgroundColor: null,
+        fontEmbedCSS: fontEmbedCSS,
         style: { transform:'none', margin:'0', left:'0', top:'0' }
       });
     } catch(err){
@@ -1138,6 +1163,7 @@
   bodyText.style.fontSize = '18px';
   bodyText.style.lineHeight = '1.6';
   setDefaultTextColor('#222222');
+  ensureFontsLoaded();   // 시작하자마자 웹폰트를 확정 로드 (미리보기와 저장본의 글자 폭 일치)
   renderBg();
   updateLayerBtn();
   updateEmpty();
