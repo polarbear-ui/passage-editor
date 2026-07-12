@@ -28,6 +28,7 @@
     --danger:#d9695c;
     --paper:#e8ebef;         /* 작업 영역 배경 */
     --radius:10px;
+    --canvas-radius:14px;    /* 캔버스(저장 이미지) 모서리 둥글기 */
   }
 
   *{ box-sizing:border-box; }
@@ -182,13 +183,14 @@
     width:600px;
     min-height:440px;
     transform-origin:top left;
+    border-radius:var(--canvas-radius);
     box-shadow:0 14px 44px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.08);
     overflow:hidden;
-    background:#ffffff;
+    background:transparent;
     user-select:none;
   }
-  .bg-layer{ position:absolute; inset:0; z-index:1; background:#ffffff; }
-  .overlay-layer{ position:absolute; inset:0; z-index:2; pointer-events:none; background:transparent; }
+  .bg-layer{ position:absolute; inset:0; z-index:1; background:#ffffff; border-radius:inherit; }
+  .overlay-layer{ position:absolute; inset:0; z-index:2; pointer-events:none; background:transparent; border-radius:inherit; }
 
   .body-text{
     position:relative; z-index:5;
@@ -323,6 +325,7 @@
   .thought.bubble .th-text{ font-size:15px; line-height:1.5; }
 
   /* 캡처 중: 모든 편집 UI 숨김 */
+  .canvas.capturing{ box-shadow:none; }
   .canvas.capturing .handle,
   .canvas.capturing .rotate-handle,
   .canvas.capturing .del-btn,
