@@ -207,6 +207,17 @@
   .body-text.is-empty:before{
     content:attr(data-ph); color:currentColor; opacity:.4; pointer-events:none;
   }
+  /* 붙여넣은 내용이 원문의 글자 크기·서체·줄간격을 들고 오면 슬라이더가 먹히지 않는다.
+     편집 영역 안에서는 항상 상자(컨테이너) 설정을 따르도록 강제한다. 색/형광펜은 그대로 유지. */
+  .body-text *, .ts-text *, .th-text *{
+    font-size:inherit !important;
+    font-family:inherit !important;
+    line-height:inherit !important;
+  }
+  /* 붙여넣기로 들어온 문단의 기본 여백 제거 (문단 사이가 과하게 벌어지는 것 방지) */
+  .body-text p, .body-text div,
+  .ts-text p, .ts-text div,
+  .th-text p, .th-text div{ margin:0; padding:0; }
 
   /* 스티커 공통 */
   .sticker{ position:absolute; touch-action:none; }
@@ -426,6 +437,13 @@
         </div>
         <div class="swatches" id="hiliteHist"></div>
       </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer">
+          <input type="checkbox" id="ignorePastedColor">
+          붙여넣은 원문 글자색 · 형광펜 무시
+        </label>
+        <p class="hint">켜면 원문에서 딸려온 글자색과 배경(형광펜)을 함께 무시합니다. 직접 칠한 색·형광펜은 그대로 유지돼요. (다크/흰색 프리셋을 누르면 자동으로 켜집니다.)</p>
+      </div>
     </div>
 
     <!-- 접이식: 추가 편집 -->
@@ -537,6 +555,30 @@
         <div class="field">
           <button class="btn wide sm file-btn">배경 이미지 삽입<input type="file" id="bgImage" accept="image/*"></button>
         </div>
+        <div class="field" id="bgImgCtrls" style="display:none">
+          <label>배경 이미지 조절</label>
+          <div class="row">
+            <span class="valtag" style="min-width:34px;text-align:left">좌우</span>
+            <input type="range" id="bgX" min="-400" max="400" value="0">
+            <span class="valtag" id="bgXVal">0</span>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <span class="valtag" style="min-width:34px;text-align:left">상하</span>
+            <input type="range" id="bgY" min="-400" max="400" value="0">
+            <span class="valtag" id="bgYVal">0</span>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <span class="valtag" style="min-width:34px;text-align:left">확대</span>
+            <input type="range" id="bgZoom" min="100" max="300" value="100">
+            <span class="valtag" id="bgZoomVal">100%</span>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <span class="valtag" style="min-width:34px;text-align:left">블러</span>
+            <input type="range" id="bgBlur" min="0" max="24" value="0">
+            <span class="valtag" id="bgBlurVal">0</span>
+          </div>
+          <button class="btn wide sm" id="bgImgRemove" style="margin-top:8px">배경 이미지 제거</button>
+        </div>
         <div class="field">
           <label>명도 (왼쪽 어둡게 · 오른쪽 밝게)</label>
           <div class="row">
@@ -612,6 +654,8 @@
     const h = canvas.offsetHeight;
     canvasWrap.style.width  = (600 * scale) + 'px';
     canvasWrap.style.height = (h * scale) + 'px';
+    // 배경 이미지는 캔버스 높이를 기준으로 크기/위치를 계산하므로 높이가 변하면 다시 그린다
+    try { if (bg.mode === 'image') renderBg(); } catch(e){}
   }
   window.addEventListener('resize', relayout);
   if (window.ResizeObserver){ new ResizeObserver(() => relayout()).observe(canvas); }
@@ -746,12 +790,14 @@
   }
   function applyFore(c){
     exec('foreColor', c);
+    unmarkSelectionColors();   // 사용자가 칠한 색은 원문 색 취급에서 제외
     pushColor(foreHist, c);
     renderSwatches(foreHist, foreHistEl, forePicker, applyFore);
     saveHist();
   }
   function applyHilite(c){
     exec('hiliteColor', c);
+    unmarkSelectionColors('bg');   // 사용자가 친 형광펜은 원문 취급에서 제외
     pushColor(hiliteHist, c);
     renderSwatches(hiliteHist, hiliteHistEl, hilitePicker, applyHilite);
     saveHist();
@@ -763,6 +809,68 @@
   // 저장된 히스토리를 시작 시 화면에 복원
   renderSwatches(foreHist, foreHistEl, forePicker, applyFore);
   renderSwatches(hiliteHist, hiliteHistEl, hilitePicker, applyHilite);
+
+  // ============================================================
+  // 붙여넣기 정리 (원문의 글자 크기·서체·줄간격은 벗기고, 굵게/기울임/색/형광펜은 유지)
+  // ============================================================
+  const KEEP_TAGS = { B:1, STRONG:1, I:1, EM:1, U:1, S:1, STRIKE:1, DEL:1,
+                      SPAN:1, BR:1, P:1, DIV:1, FONT:1 };
+
+  function sanitizePastedHTML(html){
+    const box = document.createElement('div');
+    box.innerHTML = html;
+
+    // 통째로 버릴 것들
+    box.querySelectorAll('script,style,link,meta,iframe,object,embed,svg,img,video,audio,table,input,button')
+       .forEach(el => el.remove());
+
+    // 남길 서식(색·형광펜)만 뽑아내고 나머지 속성/스타일은 전부 제거
+    box.querySelectorAll('*').forEach(el => {
+      let color = '', bg = '';
+      try {
+        color = (el.style && el.style.color) || el.getAttribute('color') || '';
+        bg    = (el.style && el.style.backgroundColor) || '';
+      } catch(e){}
+      // 모든 속성 제거 (style, class, font-size, id, on* 이벤트 등 싹)
+      for (let i = el.attributes.length - 1; i >= 0; i--){
+        el.removeAttribute(el.attributes[i].name);
+      }
+      if (color){ el.style.color = color; el.classList.add('pasted-color'); }
+      if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)'){
+        el.style.backgroundColor = bg; el.classList.add('pasted-bg');
+      }
+    });
+
+    // 허용하지 않는 태그는 껍데기만 벗기고 내용은 살린다 (h1, a, li, blockquote 등)
+    let guard = 0;
+    while (guard++ < 50){
+      const bad = box.querySelector('*:not(' + Object.keys(KEEP_TAGS).join('):not(') + ')');
+      if (!bad) break;
+      const parent = bad.parentNode;
+      while (bad.firstChild) parent.insertBefore(bad.firstChild, bad);
+      parent.removeChild(bad);
+    }
+    return box.innerHTML;
+  }
+
+  // 캔버스 안의 모든 편집 영역(본문·텍스트 스티커·속마음)에 적용
+  canvas.addEventListener('paste', e => {
+    const target = e.target.closest && e.target.closest('[contenteditable="true"]');
+    if (!target || !canvas.contains(target)) return;
+    const cb = e.clipboardData || window.clipboardData;
+    if (!cb) return;
+    e.preventDefault();
+
+    const html = cb.getData('text/html');
+    if (html){
+      document.execCommand('insertHTML', false, sanitizePastedHTML(html));
+    } else {
+      // 순수 텍스트: 줄바꿈은 pre-wrap이 살려준다
+      document.execCommand('insertText', false, cb.getData('text/plain') || '');
+    }
+    if (ignorePasted) stripPastedColors();   // 무시 모드면 새로 붙인 내용도 바로 적용
+    updateEmpty();
+  });
 
   // ============================================================
   // 공용 드래그 (마우스 + 터치)
@@ -1021,23 +1129,177 @@
   // ============================================================
   // 배경
   // ============================================================
-  const bg = { mode:'solid', color:'#ffffff', gradS:'#a8c5d6', gradE:'#dbe6ec', image:null, bright:0 };
+  const bg = { mode:'solid', color:'#ffffff', gradS:'#a8c5d6', gradE:'#dbe6ec',
+               image:null, bakedImage:null, natW:0, natH:0,
+               x:0, y:0, zoom:100, blur:0, bright:0 };
+
   function renderBg(){
-    if (bg.mode === 'solid')         bgLayer.style.background = bg.color;
-    else if (bg.mode === 'gradient') bgLayer.style.background = 'linear-gradient(180deg,'+bg.gradS+','+bg.gradE+')';
-    else if (bg.mode === 'image')    bgLayer.style.background = 'url('+bg.image+') center/cover no-repeat';
+    if (bg.mode === 'image' && bg.image){
+      const src = bg.bakedImage || bg.image;
+      const cw = 600;
+      const ch = canvas.offsetHeight || 440;
+      bgLayer.style.background = 'transparent';
+      bgLayer.style.backgroundImage  = 'url(' + src + ')';
+      bgLayer.style.backgroundRepeat = 'no-repeat';
+      if (bg.natW && bg.natH){
+        // cover 기준 크기를 직접 계산한 뒤 확대율을 곱한다.
+        // (calc()나 cover 키워드 대신 px로 확정해야 캡처에서도 동일하게 그려진다)
+        const cover = Math.max(cw / bg.natW, ch / bg.natH);
+        const bw = bg.natW * cover * (bg.zoom / 100);
+        const bh = bg.natH * cover * (bg.zoom / 100);
+        bgLayer.style.backgroundSize = bw + 'px ' + bh + 'px';
+        bgLayer.style.backgroundPosition =
+          ((cw - bw) / 2 + bg.x) + 'px ' + ((ch - bh) / 2 + bg.y) + 'px';
+      } else {
+        bgLayer.style.backgroundSize = 'cover';
+        bgLayer.style.backgroundPosition = 'center';
+      }
+    } else {
+      bgLayer.style.backgroundImage = 'none';
+      if (bg.mode === 'gradient') bgLayer.style.background = 'linear-gradient(180deg,'+bg.gradS+','+bg.gradE+')';
+      else                        bgLayer.style.background = bg.color;
+    }
     const v = bg.bright;
     if (v < 0)      overlay.style.background = 'rgba(0,0,0,'   + Math.min(0.85, -v/100) + ')';
     else if (v > 0) overlay.style.background = 'rgba(255,255,255,' + Math.min(0.85, v/100) + ')';
     else            overlay.style.background = 'transparent';
   }
+
+  // html2canvas는 CSS 블러(filter)를 그리지 못한다. 미리보기만 흐리고 저장본은 선명해지는
+  // 사고를 막기 위해, 블러를 이미지 자체에 미리 구워 넣은 뒤 그 결과를 배경으로 쓴다.
+  function bakeBackgroundBlur(){
+    if (!bg.image){ bg.bakedImage = null; renderBg(); return; }
+    if (!bg.blur){ bg.bakedImage = null; renderBg(); return; }
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = im.naturalWidth; c.height = im.naturalHeight;
+        const ctx = c.getContext('2d');
+        // 화면 기준 블러 값을 이미지 원본 해상도로 환산
+        const k = Math.max(0.2, im.naturalWidth / 600);
+        const px = bg.blur * k;
+        ctx.filter = 'blur(' + px + 'px)';
+        // 가장자리가 투명하게 번지지 않도록 살짝 키워서 그린다
+        const pad = px * 2;
+        ctx.drawImage(im, -pad, -pad, c.width + pad*2, c.height + pad*2);
+        bg.bakedImage = c.toDataURL('image/png');
+      } catch(e){
+        bg.bakedImage = null;   // 실패 시 원본 사용 (블러 없이)
+      }
+      renderBg();
+    };
+    im.onerror = () => { bg.bakedImage = null; renderBg(); };
+    im.src = bg.image;
+  }
+
   function setDefaultTextColor(c){ defaultTextColor = c; bodyText.style.color = c; }
 
-  $('#bgWhite').addEventListener('click', () => { bg.mode='solid'; bg.color='#ffffff'; setDefaultTextColor('#222222'); renderBg(); });
-  $('#bgDark').addEventListener('click',  () => { bg.mode='solid'; bg.color='#1e1f26'; setDefaultTextColor('#ffffff'); renderBg(); });
+  // 원문 색 무시 모드.
+  // CSS로 억지로 덮어쓰면(!important) 사용자가 직접 칠하는 색까지 함께 눌려버린다.
+  // 그래서 붙여넣은 색을 "잠시 떼어내 보관"하고, 끄면 되돌려주는 방식으로 처리한다.
+  const ipc = $('#ignorePastedColor');
+  let ignorePasted = false;
+
+  function stripPastedColors(){
+    bodyText.querySelectorAll('.pasted-color').forEach(el => {
+      if (el.style.color){
+        el.dataset.pastedColor = el.style.color;   // 원문 글자색 보관
+        el.style.color = '';                        // 기본 글자색을 따라가게
+      }
+    });
+    bodyText.querySelectorAll('.pasted-bg').forEach(el => {
+      if (el.style.backgroundColor){
+        el.dataset.pastedBg = el.style.backgroundColor;   // 원문 형광펜 보관
+        el.style.backgroundColor = '';                     // 배경 제거
+      }
+    });
+  }
+  function restorePastedColors(){
+    bodyText.querySelectorAll('[data-pasted-color]').forEach(el => {
+      el.style.color = el.dataset.pastedColor;
+      delete el.dataset.pastedColor;
+    });
+    bodyText.querySelectorAll('[data-pasted-bg]').forEach(el => {
+      el.style.backgroundColor = el.dataset.pastedBg;
+      delete el.dataset.pastedBg;
+    });
+  }
+  function setIgnorePastedColor(on){
+    ignorePasted = on;
+    ipc.checked = on;
+    if (on) stripPastedColors(); else restorePastedColors();
+  }
+  ipc.addEventListener('change', () => setIgnorePastedColor(ipc.checked));
+
+  // 사용자가 직접 칠한 색은 더 이상 '원문 색'이 아니므로 표식을 뗀다.
+  // (이렇게 해야 나중에 무시 모드를 껐을 때 원문 색이 사용자의 색을 덮어쓰지 않는다)
+  function unmarkSelectionColors(kind){
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const sels = kind === 'bg'
+      ? '.pasted-bg, [data-pasted-bg]'
+      : '.pasted-color, [data-pasted-color]';
+    bodyText.querySelectorAll(sels).forEach(el => {
+      let hit = false;
+      try { hit = range.intersectsNode(el); } catch(e){}
+      if (!hit) return;
+      if (kind === 'bg'){
+        if (el.style.backgroundColor){           // 방금 형광펜이 칠해진 요소
+          el.classList.remove('pasted-bg');
+          delete el.dataset.pastedBg;
+        }
+      } else if (el.style.color){                // 방금 글자색이 칠해진 요소
+        el.classList.remove('pasted-color');
+        delete el.dataset.pastedColor;
+      }
+    });
+  }
+
+  $('#bgWhite').addEventListener('click', () => {
+    bg.mode='solid'; bg.color='#ffffff'; setDefaultTextColor('#222222');
+    setIgnorePastedColor(true); renderBg();
+  });
+  $('#bgDark').addEventListener('click',  () => {
+    bg.mode='solid'; bg.color='#1e1f26'; setDefaultTextColor('#ffffff');
+    setIgnorePastedColor(true); renderBg();
+  });
   $('#btnGrad').addEventListener('click', () => { bg.mode='gradient'; bg.gradS=$('#gradStart').value; bg.gradE=$('#gradEnd').value; renderBg(); });
   $('#btnBgColor').addEventListener('click', () => { bg.mode='solid'; bg.color=$('#bgColor').value; renderBg(); });
-  $('#bgImage').addEventListener('change', e => readFile(e.target, d => { bg.mode='image'; bg.image=d; renderBg(); }));
+
+  const bgCtrls = $('#bgImgCtrls');
+  $('#bgImage').addEventListener('change', e => readFile(e.target, d => {
+    const probe = new Image();
+    probe.onload = () => {
+      bg.mode='image'; bg.image=d; bg.natW=probe.naturalWidth; bg.natH=probe.naturalHeight;
+      bgCtrls.style.display = '';
+      bakeBackgroundBlur();   // 내부에서 renderBg 호출
+    };
+    probe.src = d;
+  }));
+  $('#bgImgRemove').addEventListener('click', () => {
+    bg.mode='solid'; bg.image=null; bg.bakedImage=null; bg.natW=0; bg.natH=0;
+    bg.x=0; bg.y=0; bg.zoom=100; bg.blur=0;
+    $('#bgX').value=0; $('#bgXVal').textContent='0';
+    $('#bgY').value=0; $('#bgYVal').textContent='0';
+    $('#bgZoom').value=100; $('#bgZoomVal').textContent='100%';
+    $('#bgBlur').value=0; $('#bgBlurVal').textContent='0';
+    bgCtrls.style.display='none';
+    renderBg();
+  });
+
+  const bgXs=$('#bgX'), bgYs=$('#bgY'), bgZs=$('#bgZoom'), bgBs=$('#bgBlur');
+  bgXs.addEventListener('input', () => { bg.x = +bgXs.value; $('#bgXVal').textContent = bgXs.value; renderBg(); });
+  bgYs.addEventListener('input', () => { bg.y = +bgYs.value; $('#bgYVal').textContent = bgYs.value; renderBg(); });
+  bgZs.addEventListener('input', () => { bg.zoom = +bgZs.value; $('#bgZoomVal').textContent = bgZs.value+'%'; renderBg(); });
+  let blurTimer = null;
+  bgBs.addEventListener('input', () => {
+    bg.blur = +bgBs.value; $('#bgBlurVal').textContent = bgBs.value;
+    clearTimeout(blurTimer);
+    blurTimer = setTimeout(bakeBackgroundBlur, 90);   // 굽는 비용이 있어 살짝 지연 처리
+  });
+
   const br = $('#brightness'), brv = $('#brightnessVal');
   br.addEventListener('input', () => { bg.bright = +br.value; brv.textContent = br.value; renderBg(); });
 
@@ -1064,11 +1326,8 @@
     if (!confirm('모든 내용을 처음 상태로 되돌릴까요? 되돌릴 수 없습니다.')) return;
     bodyText.innerHTML = '';
     bodyText.style.fontFamily = FONTS.pretendard;
-    bodyText.style.fontSize = '18px';
-    bodyText.style.lineHeight = '1.6';
+    // 글자 크기·행간은 사용자가 맞춰둔 설정이므로 초기화에서 건드리지 않는다
     $('#fontFamily').value = 'pretendard';
-    fsSlider.value = 18; fsVal.textContent = '18px';
-    lhSlider.value = 1.6; lhVal.textContent = '1.60';
     forePicker.value = '#74a5c2'; hilitePicker.value = '#ffe27a';
     // 색상 히스토리는 문서 내용이 아니라 저장된 팔레트이므로 초기화에서 유지한다
     updateEmpty();
@@ -1090,9 +1349,16 @@
       renderThought(n);
     });
 
-    bg.mode='solid'; bg.color='#ffffff'; bg.image=null; bg.bright=0;
+    bg.mode='solid'; bg.color='#ffffff'; bg.image=null; bg.bakedImage=null; bg.bright=0;
+    bg.natW=0; bg.natH=0; bg.x=0; bg.y=0; bg.zoom=100; bg.blur=0;
     bg.gradS='#a8c5d6'; bg.gradE='#dbe6ec';
     $('#bgColor').value='#ffffff'; $('#gradStart').value='#a8c5d6'; $('#gradEnd').value='#dbe6ec';
+    $('#bgX').value=0; $('#bgXVal').textContent='0';
+    $('#bgY').value=0; $('#bgYVal').textContent='0';
+    $('#bgZoom').value=100; $('#bgZoomVal').textContent='100%';
+    $('#bgBlur').value=0; $('#bgBlurVal').textContent='0';
+    bgCtrls.style.display='none';
+    setIgnorePastedColor(false);
     br.value=0; brv.textContent='0';
     setDefaultTextColor('#222222');
     renderBg();
@@ -1165,65 +1431,85 @@
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     document.querySelectorAll('.sticker.sel').forEach(s => s.classList.remove('sel'));
 
-    isCapturing = true;                 // relayout 잠금 (이후 transform 고정)
-    canvas.classList.add('capturing');
+    const btn = $('#btnSave'); const label = btn.textContent;
     const prevTransform = canvas.style.transform;
-    canvas.style.transform = 'none';
-    // 스크롤된 상태로 캡처하면 위치가 밀릴 수 있어(모바일에서 특히) 잠시 맨 위로
     const prevWinY = window.scrollY || 0;
     const prevWsY  = workspace.scrollTop || 0;
-    window.scrollTo(0, 0); workspace.scrollTop = 0;
-
-    const btn = $('#btnSave'); const label = btn.textContent;
-    btn.textContent = '저장 준비 중…'; btn.disabled = true;
-
-    await ensureFontsLoaded();
-    await nextFrames(4);
-
-    // 형광펜을 줄 단위 사각형으로 분해 (좌표는 transform:none 기준)
-    const cleanupHighlights = buildHighlightOverlays();
-
-    const w = 600;
-    const h = Math.ceil(canvas.offsetHeight);   // 폰트 확정 후 높이 재측정
+    let cleanupHighlights = null;
     let dataUrl = null;
 
+    isCapturing = true;                 // relayout 잠금 (키보드 닫힘 등 resize가 와도 transform 고정)
+    canvas.classList.add('capturing');
+    canvas.style.transform = 'none';
+    // 스크롤된 상태로 캡처하면 위치가 밀릴 수 있어(모바일에서 특히) 잠시 맨 위로
+    window.scrollTo(0, 0); workspace.scrollTop = 0;
+    btn.textContent = '저장 준비 중…'; btn.disabled = true;
+
     try {
-      // 1차: html2canvas — 화면에 실제로 렌더된 글자 위치를 그대로 그리므로
-      //       저장본의 줄바꿈이 미리보기와 항상 일치한다.
+      await ensureFontsLoaded();
+      await nextFrames(4);
+
+      // 형광펜을 줄 단위 사각형으로 분해 (좌표는 transform:none 기준)
+      cleanupHighlights = buildHighlightOverlays();
+
+      const w = 600;
+      // offsetHeight는 소수점을 버려서 마지막 줄 밑동이 1px 깎일 수 있다.
+      // 내용 높이(scrollHeight)와 비교해 큰 값을 쓰고, 여유 1px을 더한다.
+      const h = Math.ceil(Math.max(canvas.offsetHeight, canvas.scrollHeight)) + 1;
+
+      // 모바일(특히 iOS 사파리)은 캔버스 총 픽셀 수에 상한이 있어, 지문이 아주 길면
+      // 2배 해상도 버퍼가 한계를 넘어 빈 이미지가 저장된다. 넘칠 때만 배율을 낮춘다.
+      const MAX_AREA = 16000000;                  // 약 1,600만 px (iOS 한계보다 살짝 보수적으로)
+      let ratio = 2;
+      if (w * h * ratio * ratio > MAX_AREA){
+        ratio = Math.max(1, Math.sqrt(MAX_AREA / (w * h)));
+      }
+
+      // 복제본이 폰트를 네트워크에서 다시 받게 두면, 못 받았을 때 대체 글꼴로 조판되어
+      // 줄 수가 늘고 아래가 잘린다. 폰트를 데이터로 심어 복제본에 직접 주입한다.
+      const embedCSS = await getFontCSS();
+
       try {
+        // 1차: html2canvas — 화면에 실제로 렌더된 글자 위치를 그대로 그리므로
+        //       저장본의 줄바꿈이 미리보기와 항상 일치한다.
         const out = await window.html2canvas(canvas, {
-          scale: 2,                 // 고해상도 2배
+          scale: ratio,
           width: w, height: h,
           backgroundColor: null,    // 둥근 모서리 밖은 투명
           useCORS: true,
-          logging: false
+          logging: false,
+          imageTimeout: 0,          // 이미지 로딩을 시간 제한으로 끊지 않음
+          onclone: function(doc){
+            if (embedCSS){
+              const st = doc.createElement('style');
+              st.textContent = embedCSS;   // @font-face (데이터 URL) — 네트워크 의존 제거
+              doc.head.appendChild(st);
+            }
+          }
         });
         dataUrl = out.toDataURL('image/png');
       } catch(err1){
         // 2차 폴백: html-to-image (줄바꿈이 어긋날 수 있으나 저장 자체는 가능)
-        try {
-          const fontEmbedCSS = await getFontCSS();
-          dataUrl = await window.htmlToImage.toPng(canvas, {
-            width: w, height: h,
-            canvasWidth: w*2, canvasHeight: h*2,
-            backgroundColor: null,
-            fontEmbedCSS: fontEmbedCSS,
-            style: { transform:'none', margin:'0', left:'0', top:'0' }
-          });
-        } catch(err2){
-          alert('이미지 저장 중 문제가 발생했어요.\n다시 시도해 주세요.\n(' + err2 + ')');
-        }
+        dataUrl = await window.htmlToImage.toPng(canvas, {
+          width: w, height: h,
+          canvasWidth: Math.round(w*ratio), canvasHeight: Math.round(h*ratio),
+          backgroundColor: null,
+          fontEmbedCSS: embedCSS,
+          style: { transform:'none', margin:'0', left:'0', top:'0' }
+        });
       }
+    } catch(err){
+      alert('이미지 저장 중 문제가 발생했어요.\n다시 시도해 주세요.\n(' + err + ')');
     } finally {
-      cleanupHighlights();   // 어떤 경우든 형광펜 원상 복구
+      // 어떤 경우에도(예외 포함) 편집기를 원래 상태로 되돌린다 — 잠긴 채 굳는 것 방지
+      if (cleanupHighlights) cleanupHighlights();
+      canvas.style.transform = prevTransform;
+      canvas.classList.remove('capturing');
+      btn.textContent = label; btn.disabled = false;
+      isCapturing = false;
+      relayout();
+      window.scrollTo(0, prevWinY); workspace.scrollTop = prevWsY;
     }
-
-    canvas.style.transform = prevTransform;
-    canvas.classList.remove('capturing');
-    btn.textContent = label; btn.disabled = false;
-    isCapturing = false;                // 잠금 해제 후 정상 재배치
-    relayout();
-    window.scrollTo(0, prevWinY); workspace.scrollTop = prevWsY;
 
     if (dataUrl){
       const a = document.createElement('a');
