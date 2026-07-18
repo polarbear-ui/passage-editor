@@ -169,7 +169,12 @@
   .file-btn{ position:relative; overflow:hidden; }
   .file-btn input[type="file"]{ position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
 
-  .actions{ position:sticky; bottom:0; margin-top:8px; }
+  /* 저장/초기화 묶음: 다른 항목들과 같은 흐름에 자연스럽게 쌓이도록 둔다.
+     (position:sticky로 고정하면 배경이 없어 뒤 내용과 겹쳐 보인다) */
+  .actions{
+    margin-top:18px; padding-top:16px;
+    border-top:1px solid var(--line);
+  }
 
   /* ---------------- 작업 영역 ---------------- */
   .workspace{
