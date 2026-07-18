@@ -612,6 +612,13 @@
     <!-- 액션 -->
     <div class="group actions">
       <div class="field">
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer">
+          <input type="checkbox" id="roundCorners" checked>
+          캔버스 모서리 둥글게
+        </label>
+        <p class="hint">끄면 모서리가 각지고 투명한 부분이 사라집니다. 트위터처럼 투명 PNG를 흰색으로 덮는 곳에 올릴 때 켜 두면 모서리가 흰색으로 튀므로, 그럴 땐 꺼 주세요.</p>
+      </div>
+      <div class="field">
         <button class="btn accent wide" id="btnSave">이미지로 저장하기 (PNG)</button>
       </div>
       <div class="field">
@@ -1379,6 +1386,7 @@
     $('#bgBlur').value=0; $('#bgBlurVal').textContent='0';
     bgCtrls.style.display='none';
     setIgnorePastedColor(false);
+    setRoundCorners(true);
     br.value=0; brv.textContent='0';
     setDefaultTextColor('#222222');
     renderBg();
@@ -1473,9 +1481,12 @@
       cleanupHighlights = buildHighlightOverlays();
 
       const w = 600;
-      // offsetHeight는 소수점을 버려서 마지막 줄 밑동이 1px 깎일 수 있다.
-      // 내용 높이(scrollHeight)와 비교해 큰 값을 쓰고, 여유 1px을 더한다.
-      const h = Math.ceil(Math.max(canvas.offsetHeight, canvas.scrollHeight)) + 1;
+      // 저장 높이는 "캔버스 상자 자체"의 높이여야 한다.
+      // scrollHeight를 쓰면 캔버스 밖으로 넘친 스티커까지 세어 높이가 부풀고,
+      // 그 결과 캔버스 아래에 빈 공간이 붙은 PNG가 나온다. (실제 제보된 증상)
+      // getBoundingClientRect는 소수점까지 주므로 마지막 줄 밑동도 깎이지 않는다.
+      const rectH = canvas.getBoundingClientRect().height;   // 이 시점 transform:none
+      const h = Math.max(1, Math.ceil(Math.min(rectH, canvas.offsetHeight + 1)));
 
       // 모바일(특히 iOS 사파리)은 캔버스 총 픽셀 수에 상한이 있어, 지문이 아주 길면
       // 2배 해상도 버퍼가 한계를 넘어 빈 이미지가 저장된다. 넘칠 때만 배율을 낮춘다.
@@ -1578,6 +1589,15 @@
   }
 
   $('#btnSave').addEventListener('click', saveImage);
+
+  // 캔버스 모서리 둥글기 on/off
+  // (끄면 캔버스 전체가 배경으로 채워져 투명 픽셀이 없어진다 → 트위터 등에서 흰 모서리 방지)
+  const roundCb = $('#roundCorners');
+  function setRoundCorners(on){
+    roundCb.checked = on;
+    canvas.style.borderRadius = on ? 'var(--canvas-radius)' : '0';
+  }
+  roundCb.addEventListener('change', () => setRoundCorners(roundCb.checked));
 
   // ============================================================
   // 초기 실행
