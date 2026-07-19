@@ -446,6 +446,15 @@
         </div>
       </div>
       <div class="field">
+        <label>정렬 (선택 영역)</label>
+        <div class="fmt-row">
+          <button class="btn sm" id="btnAlignLeft" title="왼쪽 정렬">◧</button>
+          <button class="btn sm" id="btnAlignCenter" title="가운데 정렬">▣</button>
+          <button class="btn sm" id="btnAlignRight" title="오른쪽 정렬">◨</button>
+        </div>
+        <p class="hint">드래그로 선택한 문단에 적용됩니다. 본문뿐 아니라 텍스트 스티커·속마음에도 사용할 수 있어요.</p>
+      </div>
+      <div class="field">
         <label>글자색 (선택 영역)</label>
         <div class="row">
           <input type="color" id="foreColor" value="#74a5c2">
@@ -760,12 +769,18 @@
     try { document.execCommand('styleWithCSS', false, true); } catch(e){}
     document.execCommand(cmd, false, val === undefined ? null : val);
   }
-  ['btnBold','btnItalic','btnStrike','btnFore','btnHilite','btnHiliteClear'].forEach(id => {
+  ['btnBold','btnItalic','btnStrike','btnFore','btnHilite','btnHiliteClear',
+   'btnAlignLeft','btnAlignCenter','btnAlignRight'].forEach(id => {
     $('#'+id).addEventListener('mousedown', e => e.preventDefault());
   });
   $('#btnBold').addEventListener('click', () => exec('bold'));
   $('#btnItalic').addEventListener('click', () => exec('italic'));
   $('#btnStrike').addEventListener('click', () => exec('strikeThrough'));
+
+  // 정렬: 선택 영역이 걸친 문단에 text-align 적용
+  $('#btnAlignLeft').addEventListener('click',   () => exec('justifyLeft'));
+  $('#btnAlignCenter').addEventListener('click', () => exec('justifyCenter'));
+  $('#btnAlignRight').addEventListener('click',  () => exec('justifyRight'));
 
   // ---- 글자색 / 형광펜 + 히스토리 (localStorage 보존) ----
   const forePicker = $('#foreColor'), hilitePicker = $('#hiliteColor');
