@@ -189,7 +189,7 @@
     width:600px;
     min-height:440px;
     transform-origin:top left;
-    border-radius:var(--canvas-radius);
+    border-radius:0;
     box-shadow:0 14px 44px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.08);
     overflow:hidden;
     background:transparent;
@@ -326,7 +326,7 @@
     align-self:center; width:90%; max-width:540px;
     display:flex; align-items:center; gap:12px;
     border-radius:999px; padding:8px 22px 8px 8px;
-    box-shadow:0 4px 14px rgba(0,0,0,.12);
+    box-shadow:none;
   }
   .thought.popup .th-profile{ width:38px; height:38px; }
   .thought.popup .th-main{ flex:1; min-width:0; }
@@ -337,7 +337,7 @@
   .thought.bubble[data-char="1"]{ align-self:flex-start; }
   .thought.bubble[data-char="2"]{ align-self:flex-end; flex-direction:row-reverse; }
   .thought.bubble .th-main{
-    border-radius:20px; padding:11px 16px; box-shadow:0 4px 14px rgba(0,0,0,.12); min-width:0;
+    border-radius:20px; padding:11px 16px; box-shadow:none; min-width:0;
   }
   .thought.bubble[data-char="1"] .th-main{ border-bottom-left-radius:6px; }
   .thought.bubble[data-char="2"] .th-main{ border-bottom-right-radius:6px; text-align:right; }
@@ -345,19 +345,13 @@
 
   /* 캡처 중: 모든 편집 UI 숨김 */
   .canvas.capturing{ box-shadow:none; }
-  /* html2canvas는 box-shadow를 못 그리므로, 캡처 중에는 유사 그림자로 대체 */
+  /* 속마음 그림자는 미리보기와 저장본 모두 사용하지 않는다 */
   .canvas.capturing .thought.popup,
-  .canvas.capturing .thought.bubble .th-main{ box-shadow:none; position:relative; }
+  .canvas.capturing .thought.bubble .th-main{ box-shadow:none; }
   .canvas.capturing .thought.popup::before,
-  .canvas.capturing .thought.bubble .th-main::before{
-    content:''; position:absolute; inset:0; transform:translateY(2px);
-    border-radius:inherit; background:rgba(0,0,0,.06); z-index:-1;
-  }
   .canvas.capturing .thought.popup::after,
-  .canvas.capturing .thought.bubble .th-main::after{
-    content:''; position:absolute; inset:2px; transform:translateY(4px);
-    border-radius:inherit; background:rgba(0,0,0,.07); z-index:-1;
-  }
+  .canvas.capturing .thought.bubble .th-main::before,
+  .canvas.capturing .thought.bubble .th-main::after{ content:none !important; }
   .canvas.capturing .handle,
   .canvas.capturing .rotate-handle,
   .canvas.capturing .del-btn,
@@ -627,7 +621,7 @@
     <div class="group actions">
       <div class="field">
         <label style="display:flex;align-items:center;gap:7px;cursor:pointer">
-          <input type="checkbox" id="roundCorners" checked>
+          <input type="checkbox" id="roundCorners">
           캔버스 모서리 둥글게
         </label>
       </div>
@@ -1508,9 +1502,9 @@
       const h = Math.max(1, Math.ceil(Math.min(rectH, canvas.offsetHeight + 1)));
 
       // 모바일(특히 iOS 사파리)은 캔버스 총 픽셀 수에 상한이 있어, 지문이 아주 길면
-      // 2배 해상도 버퍼가 한계를 넘어 빈 이미지가 저장된다. 넘칠 때만 배율을 낮춘다.
+      // 3배 해상도 버퍼가 한계를 넘어 빈 이미지가 저장될 수 있다. 넘칠 때만 배율을 낮춘다.
       const MAX_AREA = IS_IOS ? 10000000 : 16000000;   // iOS는 더 보수적으로 (약 1,000만 px)
-      let ratio = 2;
+      let ratio = 3;
       if (w * h * ratio * ratio > MAX_AREA){
         ratio = Math.max(1, Math.sqrt(MAX_AREA / (w * h)));
       }
@@ -1617,6 +1611,7 @@
     canvas.style.borderRadius = on ? 'var(--canvas-radius)' : '0';
   }
   roundCb.addEventListener('change', () => setRoundCorners(roundCb.checked));
+  setRoundCorners(false);   // 기본값: 직각 모서리
 
   // ============================================================
   // 초기 실행
